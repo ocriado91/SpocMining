@@ -14,6 +14,7 @@ Functions contained:
     - animate_orbit
     - plot_distance
     - plot_deltaV
+    - plot_mass_distribution
 """
 #######################################################################
 # Imports area
@@ -48,6 +49,55 @@ logger = logging.getLogger(__name__)
 
 T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
 T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
+
+def plot_mass_distribution(asteroidList: list,
+                           figurename: str = 'mass_histogram.png'):
+
+    """
+    Plot mass distribution of asteroids in list
+
+    Parameters
+    ----------
+    asteroidList : list
+        List of asteroids
+    figurename : str
+        Name of figure
+
+    Returns
+    -------
+    None
+
+    """
+
+    goldMass = 0
+    platinumMass = 0
+    nickelMass = 0
+    propellantMass = 0
+    for asteroid in asteroidList:
+        if asteroid.materialType == 'Gold':
+            goldMass += asteroid.normalizedMass
+        elif asteroid.materialType == 'Platinum':
+            platinumMass += asteroid.normalizedMass
+        elif asteroid.materialType == 'Nickel':
+            nickelMass += asteroid.normalizedMass
+        elif asteroid.materialType == 'Propellant':
+            propellantMass += asteroid.normalizedMass
+
+    massList = [goldMass, platinumMass, nickelMass, propellantMass]
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    # Plot bar with different colors
+    ax.bar(['Gold', 'Platinum', 'Nickel', 'Propellant'],
+            massList,
+            color=['r', 'g', 'b', 'c'])
+
+    # Set plot properties
+    ax.set_title('Mass distribution')
+    ax.set_ylabel('Mass (kg)')
+    ax.set_xlabel('Material type')
+    fig.savefig(figurename)
+
 
 def plotting_asteroids_by_material(asteroidList: list,
                                materialType: str,
@@ -640,6 +690,10 @@ if __name__ == '__main__':
     # Load asteroids
     lines = np.loadtxt('data/candidates.txt')
     asteroids = [Asteroid(line) for line in lines]
+
+    # Plot mass histogram
+    plot_mass_histogram(asteroids,
+                        figurename='mass_histogram.png')
 
     # Plot asteroids by material
     plot_asteroids_by_material(asteroids,
