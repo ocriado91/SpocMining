@@ -35,3 +35,28 @@ This challenge has a set of constraints:
 
 #### Objective
 The objective of this challenge is to maximize the minimum of the accumulated materials from all prepared asteroids (__gold__, __platinum__ and __nickel__)
+
+## Plotting results
+
+All asteroids view:
+
+![asteroids](https://user-images.githubusercontent.com/55914877/167700451-63a8ee57-028f-4d86-8394-d4c955f1fd8a.png)
+
+- Zenith view of `Gold` asteroids:
+
+![gold_zenith](https://user-images.githubusercontent.com/55914877/167700524-66d786bb-9425-473f-968a-8d56d1c3f9c7.png)
+
+- Zenith view of `Platinum` asteroids:
+
+![platinum_zenith](https://user-images.githubusercontent.com/55914877/167700580-05041686-c1bf-4728-9ef4-48c07c7a277c.png)
+
+- Zenith view of `Nickel` asteroids:
+
+![nickel_zenith](https://user-images.githubusercontent.com/55914877/167700633-f92b9141-90cb-4480-a13a-871ba8c9ecce.png)
+
+- Zenith view of `Propellant` asteroids:
+
+![propellant_zenith](https://user-images.githubusercontent.com/55914877/167700703-2ec2cc68-282b-4a5d-9ac4-8f8a2259e939.png)
+
+
+
