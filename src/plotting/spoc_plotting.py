@@ -692,8 +692,8 @@ if __name__ == '__main__':
     asteroids = [Asteroid(line) for line in lines]
 
     # Plot mass histogram
-    plot_mass_histogram(asteroids,
-                        figurename='mass_histogram.png')
+    plot_mass_distribution(asteroids,
+                           figurename='mass_histogram.png')
 
     # Plot asteroids by material
     plot_asteroids_by_material(asteroids,
