@@ -25,10 +25,13 @@ Functions contained:
 
 # Other Libs
 import glob
+from locale import normalize
 from statistics import mode
 import imageio
 import logging
 import logging
+import matplotlib as mpl
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -516,17 +519,20 @@ def animate_orbit(asteroidList: list,
     """
 
     # Plot first asteroid
-    asteroid = asteroidList[0]
-    firsPlanetObj = asteroid.planetObject
+    firstAsteroid = asteroidList[0]
+    firstPlanetObj = firstAsteroid.planetObject
     color = 'k'
     for t in np.arange(t0, tf, step):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         logger.info("Plotting frame at time {}".format(t))
-        pk.orbit_plots.plot_planet(firsPlanetObj,
-                                   axes=ax,
-                                   color=color,
-                                   t0=float(t))
+        pk.orbit_plots.plot_planet(firstPlanetObj,
+            axes=ax,
+            color=color,
+            t0=float(t),
+            legend=['Asteroid {}'.format(
+                firstAsteroid.asteroidId),
+            None])
         # Create colormap
         cmap = plt.get_cmap('tab20')
         for i, asteroid in enumerate(asteroidList[1:]):
@@ -535,25 +541,36 @@ def animate_orbit(asteroidList: list,
 
             # Plot planet and use color from colormap
             pk.orbit_plots.plot_planet(planetObj,
-                                      axes=ax,
-                                      color=cmap(i),
-                                      t0=float(t))
+                axes=ax,
+                color=cmap(i),
+                t0=float(t),
+                legend=['Asteroid {}'.format(
+                        asteroid.asteroidId),
+                    None])
 
         # Set title by index
-        ax.title.set_text("Frame {}".format(t))
+        ax.title.set_text("Orbits at {} s".format(t))
+
+        # Set legend in 3 columns
+        ax.legend(loc='center',
+                  bbox_to_anchor=(0.5, -0.05),
+                  ncol=3,
+                  fontsize=9)
 
 
         # Change point of view
         ax.view_init(elev=elevation,
                      azim=azimuth)
 
-        imageName = 'tmp/planets_' + str(int(t)).zfill(2) + '.png'
+        imageName = 'tmp/planets_' + str(int(t)).zfill(4) + '.png'
+        plt.tight_layout()
         plt.savefig(imageName)
         plt.close(fig)
 
     # Create animation using sort files from tmp/planets_*.png
     images = []
     for filename in sorted(glob.glob('tmp/planets_*.png')):
+        logger.info("Adding image {}".format(filename))
         images.append(imageio.imread(filename))
         os.remove(filename)
     imageio.mimsave(figurename, images, duration=0.1)
@@ -620,6 +637,8 @@ def plot_deltaV(asteroids: list,
                 step: float = 1,
                 t0: float = 5.0,
                 tf: float = 30.0,
+                tArr0: float = 5.0,
+                tArrf: float = 10.0,
                 figurename: str = 'deltaV.png')->None:
 
     """
@@ -646,20 +665,23 @@ def plot_deltaV(asteroids: list,
     asteroidDV = dict()
     for asteroid in asteroids[1:]:
         deltaV = []
-        for t in np.arange(t0, tf, step):
+        for tof in np.arange(t0, tf, step):
             # Coordinates of the first asteroid
-            r1, v1 = asteroids[0].planetObject.eph(T_START.mjd2000 + t)
-            logger.info('r1 at t = %f, %f, %f, %f', t, r1[0], r1[1], r1[2])
+            t1 = T_START.mjd2000 + asteroids[0].normalizedMass *\
+                constants.TIME_TO_MINE_FULLY
+            logger.info("Time mining {}".format(asteroids[0].normalizedMass *\
+                constants.TIME_TO_MINE_FULLY))
+            r1, v1 = asteroids[0].planetObject.eph(t1)
 
             # Coordinates of the second asteroid
-            r2, v2 = asteroid.planetObject.eph(T_START.mjd2000 + t)
-            logger.info('r2 at t = %f, %f, %f, %f', t, r2[0], r2[1], r2[2])
+            t2 = t1 + tof
+            r2, v2 = asteroid.planetObject.eph(t2)
 
             # Compute Lambert solution
             l = pk.lambert_problem(
                 r1=r1,
                 r2=r2,
-                tof=t * pk.DAY2SEC,
+                tof=tof * pk.DAY2SEC,
                 mu=constants.MU_TRAPPIST,
                 cw=False,
                 max_revs=0
@@ -680,9 +702,109 @@ def plot_deltaV(asteroids: list,
     for key, value in asteroidDV.items():
         ax.plot(np.arange(t0, tf, step), value,
             label=f'Asteroid {key}')
+        logger.info("Min DV = %f", min(value))
     ax.set_xlim(0, tf)
     ax.legend()
     plt.savefig(figurename)
+
+def transfer_window(asteroids: list,
+                    step: float = 1,
+                    t0: float = 5.0,
+                    tf: float = 30.0,
+                    tof0: float = 0.0,
+                    tof1: float = 50.0,
+                    basename: str = 'transfer_window_')->None:
+
+    """
+    Plot transfer window into heatmap by pair of asteroids
+
+    Parameters
+    ----------
+    asteroids : list
+        List of asteroids
+    step : float
+        Time step
+    t0 : float
+        Initial time
+    tf : float
+        Final time
+    basename : str
+        Basename of figurename
+
+    Returns
+    -------
+    None
+
+    """
+
+    for asteroid in asteroids[1:]:
+        minDeltaV = -1
+        deltaV = []
+        for tof in np.arange(tof0, tof1, step):
+            for t in np.arange(t0, tf, step):
+                # Coordinates of the first asteroid
+                t1 = T_START.mjd2000 + t
+                r1, v1 = asteroids[0].planetObject.eph(t1)
+
+                # Coordinates of the second asteroid
+                t2 = t1 + tof
+                r2, v2 = asteroid.planetObject.eph(t2)
+
+                # Compute Lambert solution
+                l = pk.lambert_problem(
+                    r1=r1,
+                    r2=r2,
+                    tof=t * pk.DAY2SEC,
+                    mu=constants.MU_TRAPPIST,
+                    cw=False,
+                    max_revs=0
+                )
+
+                # Compute the delta-v necessary to go there
+                # and match its velocity
+                DV1 = [a - b for a, b in zip(v1, l.get_v1()[0])]
+                DV2 = [a - b for a, b in zip(v2, l.get_v2()[0])]
+                DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
+                if DV < minDeltaV or minDeltaV == -1:
+                    tMin = t
+                    tofMin = tof
+                    minDeltaV = DV
+                deltaV.append(DV)
+
+        x, y = np.meshgrid(np.arange(t0, tf, step), np.arange(tof0, tof1, step))
+        # Set Z to loga
+        # z = np.log(np.array(deltaV).reshape(x.shape))
+        z = np.array(deltaV).reshape(x.shape)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        cs = ax.pcolormesh(x, y, z,
+            norm=colors.LogNorm(z.min(), z.max()),
+            cmap='viridis')
+        ax.scatter(tMin,
+                   tofMin,
+                   s=75,
+                   marker='+',
+                   label='Optimize deltaV = {} at (t, tof) = ({}, {})'.format(
+                          round(minDeltaV,2),
+                          round(tMin,2),
+                          round(tofMin,2)),
+                    color='r')
+
+        # Set legend center bottom
+        ax.legend(loc='center', bbox_to_anchor=(0.5, -0.2))
+        ax.set_xlabel('Departure day (days)')
+        ax.set_ylabel('Time of flight (days)')
+        ax.set_title('Transfer window for asteroid {} from asteroid {}'.format(
+            asteroid.asteroidId,
+            asteroids[0].asteroidId
+        ))
+
+        # Show colorbar
+        cbar = plt.colorbar(cs,
+            extend='max')
+        cbar.set_label(''r'$\Delta$''V (m/s)')
+        plt.tight_layout()
+        plt.savefig(f'{basename}{asteroid.asteroidId}.png')
 
 
 if __name__ == '__main__':
