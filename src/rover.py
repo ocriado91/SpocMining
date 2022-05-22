@@ -20,10 +20,11 @@ from src import asteroid
 
 #######################################################################
 
-# Set logging level and format
+# Set logging level and format and save to file
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.FileHandler('logs/rover.log'))
 
 T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
 T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
@@ -146,32 +147,23 @@ def main():
     asteroids = [asteroid.Asteroid(line) for line in data]
 
     t_arr = [0,
-            11.0]
-            # 45.98091676982585,
-            # 98.86574387748259,
-            # 144.3421379448264,
-            # 178.78720680368133,
-            # 198.49061810149578,
-            # 236.39180345018394,
-            # 268.4772894184571]
-    # t_m = [0,
-    #         18.980916769828053,
-    #         22.88482710766111,
-    #         29.47639406736512,
-    #         17.445068858837555,
-    #         18.703411297804774,
-    #         19.901185348707877,
-    #         24.085485968277332,
-    #         17.543366859589646]
+            11.0,
+            45.98091676982585,
+            98.86574387748259,
+            144.3421379448264,
+            178.78720680368133,
+            198.49061810149578,
+            236.39180345018394,
+            268.4772894184571]
     a = [0,
-            1446]
-            # 5131,
-            # 4449,
-            # 8091,
-            # 1516,
-            # 151,
-            # 4905,
-            # 8490]
+            1446,
+            5131,
+            4449,
+            8091,
+            1516,
+            151,
+            4905,
+            8490]
 
     # Init Rover
     rover = Rover(asteroids)
