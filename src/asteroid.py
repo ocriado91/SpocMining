@@ -64,7 +64,7 @@ class Asteroid:
             Asteroid data
 
         """
-        self.asteroidId = asteroidData[0]
+        self.asteroidId = int(asteroidData[0])
         self.inclination = asteroidData[4]
         self.keplerianElements = [asteroidData[1],
                                   asteroidData[2],

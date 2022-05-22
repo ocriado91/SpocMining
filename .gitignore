@@ -1,3 +1,10 @@
+# VS-Code
+.vscode/
+
+# Exclude picture formats (png, gif)
+*.gif
+*.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
