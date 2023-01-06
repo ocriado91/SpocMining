@@ -38,8 +38,8 @@ import os
 import pykep as pk
 
 # Own Libs
-from src.asteroid import Asteroid
-from src import constants
+from asteroid import Asteroid
+import constants
 
 
 #######################################################################
@@ -49,11 +49,11 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-
 T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
 T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
 
 def plot_mass_distribution(asteroidList: list,
+                           figureFolder: str,
                            figurename: str = 'mass_histogram.png'):
 
     """
@@ -63,6 +63,8 @@ def plot_mass_distribution(asteroidList: list,
     ----------
     asteroidList : list
         List of asteroids
+    figureFolder: str
+        Path to store plots
     figurename : str
         Name of figure
 
@@ -72,6 +74,7 @@ def plot_mass_distribution(asteroidList: list,
 
     """
 
+    logger.info('Generating mass distribution plotting')
     goldMass = 0
     platinumMass = 0
     nickelMass = 0
@@ -99,6 +102,7 @@ def plot_mass_distribution(asteroidList: list,
     ax.set_title('Mass distribution')
     ax.set_ylabel('Mass (kg)')
     ax.set_xlabel('Material type')
+    figurename = os.path.join(figureFolder, figurename)
     fig.savefig(figurename)
 
 
@@ -216,6 +220,7 @@ def plotting_zenith_by_material(asteroidList: list,
 
 
 def plot_asteroids(asteroidList: list,
+                   figureFolder: str,
                    figurename: str = 'asteroids.png'):
     """
     Plot all asteroids in list at the same plot
@@ -274,9 +279,11 @@ def plot_asteroids(asteroidList: list,
     ax.set_zlabel('Z')
 
     # Save figure
+    figurename = os.path.join(figureFolder, figurename)
     plt.savefig(figurename)
 
 def plot_zenith_asteroids(asteroidList: list,
+                          figureFolder: str,
                           figurename: str = 'zenith_asteroids.png'):
     """
     Plot zenith view of asteroids
@@ -343,11 +350,13 @@ def plot_zenith_asteroids(asteroidList: list,
     ax.set_ylabel('Y')
 
     # Save figure
+    figurename = os.path.join(figureFolder, figurename)
     plt.savefig(figurename)
 
 def plot_asteroids_by_material(asteroidList: list,
                                materialType: str,
                                figurename: str,
+                               figureFolder: str,
                                color: str = 'k')->None:
 
     """
@@ -366,6 +375,9 @@ def plot_asteroids_by_material(asteroidList: list,
 
     figurename : str
         Name of the figure to save
+
+    figureFolder: str
+        Folder to store plots
 
     Returns
     -------
@@ -387,12 +399,14 @@ def plot_asteroids_by_material(asteroidList: list,
                                    materialType=materialType,
                                    ax=ax,
                                    color=color)
+    figurename = os.path.join(figureFolder, figurename)
     plt.savefig(figurename)
 
 
 def plot_zenith_asteroids_by_material(asteroidList: list,
                                       materialType: str,
                                       figurename: str,
+                                      figureFolder: str,
                                       color: str = 'k')->None:
 
     """
@@ -411,6 +425,9 @@ def plot_zenith_asteroids_by_material(asteroidList: list,
 
     figurename : str
         Name of the figure to save
+
+    figureFolder: str
+        Folder to store plots
 
     Returns
     -------
@@ -436,6 +453,7 @@ def plot_zenith_asteroids_by_material(asteroidList: list,
                                 materialType=materialType,
                                 ax=ax,
                                 color=color)
+    figurename = os.path.join(figureFolder, figurename)
     plt.savefig(figurename)
 
 def plot_orbit(asteroidList: list,
@@ -485,9 +503,10 @@ def plot_orbit(asteroidList: list,
     plt.savefig(figurename)
 
 def animate_orbit(asteroidList: list,
+                  figureFolder: str,
                   step: float = 0.1,
-                  t0 : float = 1.0,
-                  tf: float = 0.0,
+                  t0 : float = 0.0,
+                  tf: float = 10.0,
                   ax: plt.Axes = None,
                   elevation: float = 0.0,
                   azimuth: float = 30.0,
@@ -518,6 +537,8 @@ def animate_orbit(asteroidList: list,
 
     """
 
+    logger.info('Generating animated plot (.GIF) of asteroids ({})'.format(
+        len(asteroidList)))
     # Plot first asteroid
     firstAsteroid = asteroidList[0]
     firstPlanetObj = firstAsteroid.planetObject
@@ -525,7 +546,6 @@ def animate_orbit(asteroidList: list,
     for t in np.arange(t0, tf, step):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        logger.info("Plotting frame at time {}".format(t))
         pk.orbit_plots.plot_planet(firstPlanetObj,
             axes=ax,
             color=color,
@@ -536,7 +556,6 @@ def animate_orbit(asteroidList: list,
         # Create colormap
         cmap = plt.get_cmap('tab20')
         for i, asteroid in enumerate(asteroidList[1:]):
-            logger.info("Plotting asteroid {}".format(i))
             planetObj = asteroid.planetObject
 
             # Plot planet and use color from colormap
@@ -563,6 +582,7 @@ def animate_orbit(asteroidList: list,
                      azim=azimuth)
 
         imageName = 'tmp/planets_' + str(int(t)).zfill(4) + '.png'
+        logger.debug('Generating {}'.format(imageName))
         plt.tight_layout()
         plt.savefig(imageName)
         plt.close(fig)
@@ -570,9 +590,10 @@ def animate_orbit(asteroidList: list,
     # Create animation using sort files from tmp/planets_*.png
     images = []
     for filename in sorted(glob.glob('tmp/planets_*.png')):
-        logger.info("Adding image {}".format(filename))
         images.append(imageio.imread(filename))
-        os.remove(filename)
+        # os.remove(filename)
+
+    figurename = os.path.join(figureFolder, figurename)
     imageio.mimsave(figurename, images, duration=0.1)
 
 def plot_distance(asteroids: list,
@@ -635,10 +656,8 @@ def plot_distance(asteroids: list,
 
 def plot_deltaV(asteroids: list,
                 step: float = 1,
-                t0: float = 5.0,
-                tf: float = 30.0,
-                tArr0: float = 5.0,
-                tArrf: float = 10.0,
+                tof0: float = 5.0,
+                tof1: float = 30.0,
                 figurename: str = 'deltaV.png')->None:
 
     """
@@ -665,7 +684,7 @@ def plot_deltaV(asteroids: list,
     asteroidDV = dict()
     for asteroid in asteroids[1:]:
         deltaV = []
-        for tof in np.arange(t0, tf, step):
+        for tof in np.arange(tof0, tof1, step):
             # Coordinates of the first asteroid
             t1 = T_START.mjd2000 + asteroids[0].normalizedMass *\
                 constants.TIME_TO_MINE_FULLY
@@ -700,10 +719,10 @@ def plot_deltaV(asteroids: list,
 
     # Discard first value
     for key, value in asteroidDV.items():
-        ax.plot(np.arange(t0, tf, step), value,
+        ax.plot(np.arange(tof0, tof1, step), value,
             label=f'Asteroid {key}')
         logger.info("Min DV = %f", min(value))
-    ax.set_xlim(0, tf)
+    ax.set_xlim(0, tof1)
     ax.legend()
     plt.savefig(figurename)
 
@@ -772,8 +791,6 @@ def transfer_window(asteroids: list,
                 deltaV.append(DV)
 
         x, y = np.meshgrid(np.arange(t0, tf, step), np.arange(tof0, tof1, step))
-        # Set Z to loga
-        # z = np.log(np.array(deltaV).reshape(x.shape))
         z = np.array(deltaV).reshape(x.shape)
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -804,7 +821,8 @@ def transfer_window(asteroids: list,
             extend='max')
         cbar.set_label(''r'$\Delta$''V (m/s)')
         plt.tight_layout()
-        plt.savefig(f'{basename}{asteroid.asteroidId}.png')
+        plt.savefig(f'{basename}.png')
+        return tMin, tofMin, minDeltaV
 
 
 if __name__ == '__main__':

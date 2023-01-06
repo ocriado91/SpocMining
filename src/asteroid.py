@@ -14,7 +14,7 @@ Asteroid class definition file
 import pykep as pk
 
 # Own Libs
-from src import constants
+import constants
 
 
 #######################################################################

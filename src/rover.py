@@ -71,7 +71,11 @@ class Rover:
             .format(self.sourceAsteroid.asteroidId,
                     self.targetAsteroid.asteroidId))
 
+        # tof (Time Of Flight) = arrival timestamp - departure timestamp
+        # being departure timestamp = arrival at source asteroid timestamp
+        #  - mining spent at source asteroid
         tof = targetArrivalTime - sourceArrivalTime - sourceMiningTime
+
         # Compute ephemeris of source asteroid
         t1 = T_START.mjd2000 + sourceArrivalTime  + sourceMiningTime
         r1, v1 = self.sourceAsteroid.planetObject.eph(t1)
@@ -90,8 +94,7 @@ class Rover:
                 cw=False,
                 max_revs=0)
 
-        # Compute the delta-v necessary to go there
-        # and match its velocity
+        # Compute the delta-v necessary to go there and match its velocity
         DV1 = [a - b for a, b in zip(v1, l.get_v1()[0])]
         DV2 = [a - b for a, b in zip(v2, l.get_v2()[0])]
         DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
@@ -99,7 +102,6 @@ class Rover:
 
         # Compute propellant used for this transfer and update ship
         # propellant level
-
         self.propellant = self.propellant - DV / constants.DV_PER_PROPELLANT
         if self.propellant < 0:
             logger.error("Out of propellant!")
@@ -108,30 +110,40 @@ class Rover:
         # This journey is possible, extract the material of source asteroid
         # and accumulate to the rover
         materialType = self.targetAsteroid.materialType
+
+        # Compute spent time to mining the entire target asteroid
         targetMiningTime = self.targetAsteroid.normalizedMass *\
             constants.TIME_TO_MINE_FULLY
         logger.info('Target mining time {}'.format(targetMiningTime))
+
+        # Compute prepared material and add its related material counter
         preparedMaterial = targetMiningTime / constants.TIME_TO_MINE_FULLY
 
         if materialType == 'Gold':
             logger.info('Extracting Gold material: {}'\
                 .format(preparedMaterial))
             self.goldMass += preparedMaterial
+
         elif materialType == 'Platinum':
             logger.info('Extracting Platinum material: {}'\
                 .format(preparedMaterial))
             self.platinumMass += preparedMaterial
+
         elif materialType == 'Nickel':
             logger.info('Extracting Nickel material: {}'\
                 .format(preparedMaterial))
             self.nickelMass += preparedMaterial
+
         elif materialType == 'Propellant':
             logger.info('Extracting Propellant material: {}'\
                 .format(preparedMaterial))
             self.propellant += preparedMaterial
+
         else:
             logger.warning('Detected asteroid with unknow type = '\
                 .format(materialType))
+
+        logger.info('--------SUMMARY--------')
         logger.info('Remaining propellant = {} '.format(self.propellant))
         logger.info('Gold mass = {}; Platinum mass = {}; Nickel mass {}'\
             .format(self.goldMass, self.platinumMass, self.nickelMass))
