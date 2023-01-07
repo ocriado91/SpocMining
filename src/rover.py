@@ -1,198 +1,218 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
-"""
-Rover class definition file
-"""
-#######################################################################
-# Imports area
-#######################################################################
-
-# Generic / Built-in
-import numpy as np
+'''
+Rover class
+'''
 import logging
+import pandas as pd
+import numpy as np
 
-# Other Libs
 import pykep as pk
 
-# Own Libs
-from src import constants
-from src import asteroid
-
-#######################################################################
-
-# Set logging level and format and save to file
+# Set logging level and format
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.FileHandler('logs/rover.log'))
 
-T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
-T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
+
+# Start and end epochs
+ISO_T_START = "30190302T000000"
+ISO_T_END = "30240302T000000"
+
+# Cavendish constant (m^3/s^2/kg)
+G = 6.67430e-11
+
+# Sun_mass (kg)
+SM = 1.989e30
+
+# Mass and Mu of the Trappist-1 star
+MS = 8.98266512e-2 * SM
+MU_TRAPPIST = G * MS
+
+# DV per propellant [m/s]
+DV_PER_PROPELLANT = 10000
+
+# Maximum time to fully mine an asteroid
+TIME_TO_MINE_FULLY = 30
+
+# Eccentric anomaly constants
+MAX_ITER_E = 15
+EPSILON_E = 1e-10
+
+T_START = pk.epoch_from_iso_string(ISO_T_START)
+T_END = pk.epoch_from_iso_string(ISO_T_END)
+
+
+def convert_to_planet_object(asteroid: pd.DataFrame) -> pk.planet:
+    '''
+    Convert asteroid pandas Dataframe to pykep planet object
+    '''
+
+    return pk.planet.keplerian(
+        pk.epoch_from_iso_string(ISO_T_START),
+        (
+            asteroid['Semi-major axis [m]'].values[0],
+            asteroid['Eccentricity'].values[0],
+            asteroid['Inclination [rad]'].values[0],
+            asteroid['Ascending Node [rad]'].values[0],
+            asteroid['Argument of Periapsis [rad]'].values[0],
+            asteroid['True Anomaly [rad]'].values[0]
+        ),
+        MU_TRAPPIST,
+        G*asteroid['Mass [0 to 1]'].values[0],
+        1,
+        1.1,
+        "Asteroid " + str(asteroid.index.values[0])
+    )
+
+def compute_time_of_flight(target_arrival_time: float,
+                               source_arrival_time: float,
+                               source_mining_time: float) -> float:
+    '''
+    Time of Flight = arrival timestamp - departure timestamp
+    begin departure timestamp = arrival at source asteroid timetamp
+    # - mining spent at source asteroid
+    '''
+
+    return target_arrival_time - source_arrival_time - source_mining_time
 
 class Rover:
-    """
+    '''
     Rover class
+    '''
 
-    TBC
-
-    """
     def __init__(self,
-                 asteroids: list,
-                 missionWindow: int = 1827):
+                 asteroids: pd.DataFrame):
 
         self.asteroids = asteroids
+
+        self.source_ast = None
+        self.target_ast = None
+
+        self.prepared_mass1 = 0
+        self.prepared_mass2 = 0
+        self.prepared_mass3 = 0
+
         self.propellant = 1
-        self.goldMass = 0
-        self.platinumMass = 0
-        self.nickelMass = 0
-        self.missionWindow = missionWindow
-        self.missionTime = 0
 
     def evaluate_journey(self,
-                         sourceAsteroidId: int = 0,
-                         sourceArrivalTime: float = 0.0,
-                         sourceMiningTime: float = 0.0,
-                         targetAsteroidId: int = 0,
-                         targetArrivalTime: float = 0.0,)->bool:
+                         asteroids_id: list,
+                         arrival_time: list,
+                         mining_time: list,
+                         verbose: bool = True):
         '''
-        Evaluate rover journey between
-        source and target asteroid through
-        Lambert solution
+        Method to evalute journey between asteroids
         '''
-        if self.missionTime > self.missionWindow:
-            logger.error('Reach mission window time {}'\
-                .format(self.missionWindow))
-            return False
 
-        self.sourceAsteroid = self.asteroids[sourceAsteroidId]
-        self.targetAsteroid = self.asteroids[targetAsteroidId]
+        ast_indexes = self.asteroids.index
+        for idx in range(len(asteroids_id)-1):
+            source_index = asteroids_id[idx]
+            target_index = asteroids_id[idx+1]
+            source_ast_df = self.asteroids[ast_indexes.isin([source_index])]
+            target_ast_df = self.asteroids[ast_indexes.isin([target_index])]
 
-        logger.info('Init Rover journey between asteroids {} and {}'\
-            .format(self.sourceAsteroid.asteroidId,
-                    self.targetAsteroid.asteroidId))
+            # Convert to planet object
+            self.source_ast = convert_to_planet_object(source_ast_df)
+            self.target_ast = convert_to_planet_object(target_ast_df)
 
-        # tof (Time Of Flight) = arrival timestamp - departure timestamp
-        # being departure timestamp = arrival at source asteroid timestamp
-        #  - mining spent at source asteroid
-        tof = targetArrivalTime - sourceArrivalTime - sourceMiningTime
+            # Compute remaining propellant
+            delta_v = self.compute_delta_v(arrival_time[idx+1],
+                                           arrival_time[idx],
+                                           mining_time[idx])
+            logger.info('Computing delta-V between %d and %d = %f',
+                source_index,
+                target_index,
+                delta_v)
+
+            self.propellant = self.propellant -\
+                delta_v / DV_PER_PROPELLANT
+
+            logger.info("Remaining propellant = %f", self.propellant)
+
+            # Journey is possible, extract material info
+            material_type = source_ast_df['Material Type'].values[0]
+            extracted_mass = mining_time[idx] / TIME_TO_MINE_FULLY
+
+            logger.info("Extracted %f from asteroid (%d) type %d",
+                extracted_mass,
+                source_index,
+                material_type)
+
+            # Add mass to propellant
+            if material_type == 3:
+                self.propellant += extracted_mass
+                logger.info('Detected propellant resource. Current total = %f',
+                    self.propellant)
+
+            elif material_type == 2:
+                self.prepared_mass3 += extracted_mass
+
+            elif material_type == 1:
+                self.prepared_mass2 += extracted_mass
+
+            elif material_type == 0:
+                self.prepared_mass1 += extracted_mass
+
+            logger.info("Current prepared mass = %f | %f | %f",
+                    self.prepared_mass1,
+                    self.prepared_mass2,
+                    self.prepared_mass3)
+
+            # Update score
+            score = self.compute_score()
+            if verbose:
+                print(f'{target_index}\t'
+                    f'{arrival_time[idx]:<4.2f}\t'
+                    f'{self.propellant:<14.2f}'
+                    f'{delta_v:<8.2f}\t'
+                    f'{material_type}\t'
+                    f'{self.prepared_mass1:<8.2f}'
+                    f'{self.prepared_mass2:<8.2f}'
+                    f'{self.prepared_mass3:<8.2f}'
+                    f'{score:<.2f}')
+
+            if self.propellant < 0:
+                logger.error("Out of propellant")
+                break
+
+    def compute_score(self) -> float:
+        '''
+        Compute score as minimum of mass of the 3 types
+        '''
+
+        return min(self.prepared_mass1,
+                   self.prepared_mass2,
+                   self.prepared_mass3)
+
+    def compute_delta_v(self,
+                        target_arrival_time: float,
+                        source_arrival_time: float,
+                        source_mining_time: float):
+        '''
+        Compute Delta-V necessary to go there and match its velocity
+        '''
+
+        tof = compute_time_of_flight(target_arrival_time,
+                                    source_arrival_time,
+                                    source_mining_time)
 
         # Compute ephemeris of source asteroid
-        t1 = T_START.mjd2000 + sourceArrivalTime  + sourceMiningTime
-        r1, v1 = self.sourceAsteroid.planetObject.eph(t1)
+        t_1 = T_START.mjd2000 + source_arrival_time + source_mining_time
+        r_1, v_1 = self.source_ast.eph(t_1)
 
         # Compute ephemeris of target asteroid
-        t2 = T_START.mjd2000 + targetArrivalTime
-        r2, v2 = self.targetAsteroid.planetObject.eph(t2)
+        t_2 = T_START.mjd2000 + target_arrival_time
+        r_2, v_2 = self.target_ast.eph(t_2)
 
-        logger.info('tof = {} '.format(tof))
+        lambert_solution = pk.lambert_problem(
+            r1=r_1,
+            r2=r_2,
+            tof=tof * pk.DAY2SEC,
+            mu=MU_TRAPPIST,
+            cw=False,
+            max_revs=0)
 
-        l = pk.lambert_problem(
-                r1=r1,
-                r2=r2,
-                tof=tof * pk.DAY2SEC,
-                mu=constants.MU_TRAPPIST,
-                cw=False,
-                max_revs=0)
-
-        # Compute the delta-v necessary to go there and match its velocity
-        DV1 = [a - b for a, b in zip(v1, l.get_v1()[0])]
-        DV2 = [a - b for a, b in zip(v2, l.get_v2()[0])]
-        DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
-        logger.info('Computing Delta-V equal to {}'.format(DV))
-
-        # Compute propellant used for this transfer and update ship
-        # propellant level
-        self.propellant = self.propellant - DV / constants.DV_PER_PROPELLANT
-        if self.propellant < 0:
-            logger.error("Out of propellant!")
-            return False
-
-        # This journey is possible, extract the material of source asteroid
-        # and accumulate to the rover
-        materialType = self.targetAsteroid.materialType
-
-        # Compute spent time to mining the entire target asteroid
-        targetMiningTime = self.targetAsteroid.normalizedMass *\
-            constants.TIME_TO_MINE_FULLY
-        logger.info('Target mining time {}'.format(targetMiningTime))
-
-        # Compute prepared material and add its related material counter
-        preparedMaterial = targetMiningTime / constants.TIME_TO_MINE_FULLY
-
-        if materialType == 'Gold':
-            logger.info('Extracting Gold material: {}'\
-                .format(preparedMaterial))
-            self.goldMass += preparedMaterial
-
-        elif materialType == 'Platinum':
-            logger.info('Extracting Platinum material: {}'\
-                .format(preparedMaterial))
-            self.platinumMass += preparedMaterial
-
-        elif materialType == 'Nickel':
-            logger.info('Extracting Nickel material: {}'\
-                .format(preparedMaterial))
-            self.nickelMass += preparedMaterial
-
-        elif materialType == 'Propellant':
-            logger.info('Extracting Propellant material: {}'\
-                .format(preparedMaterial))
-            self.propellant += preparedMaterial
-
-        else:
-            logger.warning('Detected asteroid with unknow type = '\
-                .format(materialType))
-
-        logger.info('--------SUMMARY--------')
-        logger.info('Remaining propellant = {} '.format(self.propellant))
-        logger.info('Gold mass = {}; Platinum mass = {}; Nickel mass {}'\
-            .format(self.goldMass, self.platinumMass, self.nickelMass))
-        self.missionTime += targetArrivalTime
-        logger.info('Mission time = {}'.format(self.missionTime))
-        return True
-
-
-def main():
-    ''' Main function '''
-
-    data = np.loadtxt('data/candidates.txt')
-    asteroids = [asteroid.Asteroid(line) for line in data]
-
-    t_arr = [0,
-            11.0,
-            45.98091676982585,
-            98.86574387748259,
-            144.3421379448264,
-            178.78720680368133,
-            198.49061810149578,
-            236.39180345018394,
-            268.4772894184571]
-    a = [0,
-            1446,
-            5131,
-            4449,
-            8091,
-            1516,
-            151,
-            4905,
-            8490]
-
-    # Init Rover
-    rover = Rover(asteroids)
-
-    for idx in range(len(a)-1):
-        logger.info('###############################')
-        logger.info('Starting Journey # {}'.format(idx))
-        logger.info('###############################')
-        flag = rover.evaluate_journey(sourceAsteroidId=a[idx],
-                                      sourceArrivalTime=t_arr[idx],
-                                      targetAsteroidId=a[idx+1],
-                                      targetArrivalTime=t_arr[idx+1])
-        if not flag:
-            logger.info('Finish!')
-            break
-
-if __name__ == '__main__':
-    main()
-
-
+        delta_v1 = [a - b for a, b in zip(v_1, lambert_solution.get_v1()[0])]
+        delta_v2 = [a - b for a, b in zip(v_2, lambert_solution.get_v2()[0])]
+        return np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2)
