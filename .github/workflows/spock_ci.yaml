@@ -36,7 +36,3 @@ jobs:
     #     # Execute all the unitary tests
     #     export PYTHONPATH="$PYTHONPATH:."
     #     pytest tests/
-    - name: Execute source code base
-      run: |
-        # Show table of results of base source code execution
-        python src/spoc_baseline.py
