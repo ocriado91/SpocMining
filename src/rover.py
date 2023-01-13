@@ -5,6 +5,7 @@ Rover class
 '''
 import logging
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 
 import pykep as pk
@@ -13,7 +14,6 @@ import pykep as pk
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.FileHandler('logs/rover.log'))
 
 
 # Start and end epochs
@@ -216,3 +216,26 @@ class Rover:
         delta_v1 = [a - b for a, b in zip(v_1, lambert_solution.get_v1()[0])]
         delta_v2 = [a - b for a, b in zip(v_2, lambert_solution.get_v2()[0])]
         return np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2)
+
+    def plot_asteroids(self,
+                       start_time: float = 0.0,
+                       end_time: float = 250.0,
+                       figurename: str = 'asteroids.png') -> None:
+        '''
+        Method for generate orbit plot between source asteroid
+        and target asteroid attributes
+        '''
+        _, axes = plt.subplots(subplot_kw={'projection': '3d'})
+        pk.orbit_plots.plot_planet(self.source_ast,
+                                        axes=axes,
+                                        t0=start_time,
+                                        tf=end_time,
+                                        legend=(False, True),
+                                        color='b')
+        pk.orbit_plots.plot_planet(self.target_ast,
+                                        axes=axes,
+                                        t0=start_time,
+                                        tf=end_time,
+                                        legend=(False, True),
+                                        color='c')
+        plt.savefig(figurename)
