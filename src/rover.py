@@ -13,7 +13,6 @@ import pykep as pk
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.FileHandler('logs/rover.log'))
 
 
 # Start and end epochs
@@ -66,9 +65,10 @@ def convert_to_planet_object(asteroid: pd.DataFrame) -> pk.planet:
         "Asteroid " + str(asteroid.index.values[0])
     )
 
+
 def compute_time_of_flight(target_arrival_time: float,
-                               source_arrival_time: float,
-                               source_mining_time: float) -> float:
+                           source_arrival_time: float,
+                           source_mining_time: float) -> float:
     '''
     Time of Flight = arrival timestamp - departure timestamp
     begin departure timestamp = arrival at source asteroid timetamp
@@ -76,6 +76,7 @@ def compute_time_of_flight(target_arrival_time: float,
     '''
 
     return target_arrival_time - source_arrival_time - source_mining_time
+
 
 class Rover:
     '''
@@ -121,9 +122,9 @@ class Rover:
                                            arrival_time[idx],
                                            mining_time[idx])
             logger.info('Computing delta-V between %d and %d = %f',
-                source_index,
-                target_index,
-                delta_v)
+                        source_index,
+                        target_index,
+                        delta_v)
 
             self.propellant = self.propellant -\
                 delta_v / DV_PER_PROPELLANT
@@ -135,15 +136,15 @@ class Rover:
             extracted_mass = mining_time[idx] / TIME_TO_MINE_FULLY
 
             logger.info("Extracted %f from asteroid (%d) type %d",
-                extracted_mass,
-                source_index,
-                material_type)
+                        extracted_mass,
+                        source_index,
+                        material_type)
 
             # Add mass to propellant
             if material_type == 3:
                 self.propellant += extracted_mass
                 logger.info('Detected propellant resource. Current total = %f',
-                    self.propellant)
+                            self.propellant)
 
             elif material_type == 2:
                 self.prepared_mass3 += extracted_mass
@@ -155,22 +156,22 @@ class Rover:
                 self.prepared_mass1 += extracted_mass
 
             logger.info("Current prepared mass = %f | %f | %f",
-                    self.prepared_mass1,
-                    self.prepared_mass2,
-                    self.prepared_mass3)
+                        self.prepared_mass1,
+                        self.prepared_mass2,
+                        self.prepared_mass3)
 
             # Update score
             score = self.compute_score()
             if verbose:
                 print(f'{target_index}\t'
-                    f'{arrival_time[idx]:<4.2f}\t'
-                    f'{self.propellant:<14.2f}'
-                    f'{delta_v:<8.2f}\t'
-                    f'{material_type}\t'
-                    f'{self.prepared_mass1:<8.2f}'
-                    f'{self.prepared_mass2:<8.2f}'
-                    f'{self.prepared_mass3:<8.2f}'
-                    f'{score:<.2f}')
+                      f'{arrival_time[idx]:<4.2f}\t'
+                      f'{self.propellant:<14.2f}'
+                      f'{delta_v:<8.2f}\t'
+                      f'{material_type}\t'
+                      f'{self.prepared_mass1:<8.2f}'
+                      f'{self.prepared_mass2:<8.2f}'
+                      f'{self.prepared_mass3:<8.2f}'
+                      f'{score:<.2f}')
 
             if self.propellant < 0:
                 logger.error("Out of propellant")
@@ -194,8 +195,8 @@ class Rover:
         '''
 
         tof = compute_time_of_flight(target_arrival_time,
-                                    source_arrival_time,
-                                    source_mining_time)
+                                     source_arrival_time,
+                                     source_mining_time)
 
         # Compute ephemeris of source asteroid
         t_1 = T_START.mjd2000 + source_arrival_time + source_mining_time

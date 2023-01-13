@@ -30,7 +30,7 @@ jobs:
     - name: Lint with pylint
       run: |
         # Set a score of 5 to avoid error into CI from base code source
-        pylint **/**/*.py **/*.py --reports=no --rcfile=.pylintrc --fail-under 5
+        pylint src/*.py --reports=no --rcfile=.pylintrc --fail-under 10
     # - name: Execute unitary test
     #   run: |
     #     # Execute all the unitary tests
