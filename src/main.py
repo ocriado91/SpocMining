@@ -13,7 +13,8 @@ from rover import Rover
 
 # Set logging level and format
 logging.basicConfig(level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s - %(name)s -\
+                            %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 HEADER = ["ID",
@@ -26,18 +27,19 @@ HEADER = ["ID",
           "Mass [0 to 1]",
           "Material Type"]
 
+
 def example(asteroids: list):
     ''' Example data from SpOC Mining Challenge'''
 
     target_asteroids = [0,
-                1446,
-                5131,
-                4449,
-                8091,
-                1516,
-                151,
-                4905,
-                8490]
+                        1446,
+                        5131,
+                        4449,
+                        8091,
+                        1516,
+                        151,
+                        4905,
+                        8490]
 
     arrival_time = [0,
                     11.0,
@@ -65,6 +67,7 @@ def example(asteroids: list):
                            arrival_time,
                            mining_time)
 
+
 def main():
     '''
     Main method
@@ -76,11 +79,12 @@ def main():
 
     candidates_file = sys.argv[1]
     asteroids = pd.read_csv(candidates_file,
-        sep=' ',
-        names=HEADER,
-        index_col=0)
+                            sep=' ',
+                            names=HEADER,
+                            index_col=0)
 
     example(asteroids)
+
 
 if __name__ == '__main__':
     main()
