@@ -229,15 +229,15 @@ class Rover:
         '''
         _, axes = plt.subplots(subplot_kw={'projection': '3d'})
         pk.orbit_plots.plot_planet(self.source_ast,
-                                        axes=axes,
-                                        t0=start_time,
-                                        tf=end_time,
-                                        legend=(False, True),
-                                        color='b')
+                                   axes=axes,
+                                   t0=start_time,
+                                   tf=end_time,
+                                   legend=(False, True),
+                                   color='b')
         pk.orbit_plots.plot_planet(self.target_ast,
-                                        axes=axes,
-                                        t0=start_time,
-                                        tf=end_time,
-                                        legend=(False, True),
-                                        color='c')
+                                   axes=axes,
+                                   t0=start_time,
+                                   tf=end_time,
+                                   legend=(False, True),
+                                   color='c')
         plt.savefig(figurename)
