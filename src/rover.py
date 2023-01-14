@@ -217,12 +217,21 @@ class Rover:
 
         delta_v1 = [a - b for a, b in zip(v_1, lambert_solution.get_v1()[0])]
         delta_v2 = [a - b for a, b in zip(v_2, lambert_solution.get_v2()[0])]
-        return np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2)
+        delta_v = np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2)
+
+        # Plot asteroid objects
+        self.plot_asteroids(start_time=t_1,
+                            end_time=t_2,
+                            delta_v=delta_v,
+                            lambert_solution=lambert_solution)
+
+        return delta_v
 
     def plot_asteroids(self,
                        start_time: float = 0.0,
                        end_time: float = 250.0,
-                       figurename: str = 'asteroids.png') -> None:
+                       delta_v: float = 0.0,
+                       lambert_solution: pk.lambert_problem = None) -> None:
         '''
         Method for generate orbit plot between source asteroid
         and target asteroid attributes
@@ -240,4 +249,23 @@ class Rover:
                                    tf=end_time,
                                    legend=(False, True),
                                    color='c')
+
+        # Extract planet object IDs
+        source_ast_id = self.source_ast.name.replace('Asteroid ', '')\
+                                            .split('.')[0]
+        target_ast_id = self.target_ast.name.replace('Asteroid ', '')\
+                                            .split('.')[0]
+        figurename = source_ast_id + "_" + target_ast_id + ".png"
+
+        # Plot Lambert solution
+        if lambert_solution:
+            pk.orbit_plots.plot_lambert(lambert_solution,
+                                        axes=axes,
+                                        color='g',
+                                        legend=True)
+
+        title = 'Delta V = ' + str(delta_v)
+        plt.title(title)
         plt.savefig(figurename)
+        plt.tight_layout()
+        return axes
