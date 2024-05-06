@@ -202,5 +202,8 @@ if __name__ == '__main__':
 
     # Extract asteroid data in evaluation code asteroid list
     asteroids_data = rover.data.filter(pl.col("ID").is_in(a))
-    plotting.animate_planets(asteroids_data,
-                             time=t_arr[-1])
+    # plotting.animate_planets(asteroids_data,
+    #                          time=t_arr[-1])
+    plotting.animate_journey(asteroids_data,
+                             a,
+                             t_arr)
