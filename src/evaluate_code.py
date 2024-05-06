@@ -1,29 +1,11 @@
 import numpy as np
 import pykep as pk
 
-################
-### Constants
-################
+import constants
 
 # Start and end epochs
-T_START = pk.epoch_from_iso_string("30190302T000000")
-T_END = pk.epoch_from_iso_string("30240302T000000")
-
-# Cavendish constant (m^3/s^2/kg)
-G = 6.67430e-11
-
-# Sun_mass (kg)
-SM = 1.989e30
-
-# Mass and Mu of the Trappist-1 star
-MS = 8.98266512e-2 * SM
-MU_TRAPPIST = G * MS
-
-# DV per fuel [m/s]
-DV_per_fuel = 10000
-
-# Maximum time to fully mine an asteroid
-TIME_TO_MINE_FULLY = 30
+T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
+T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
 
 # Loading the asteroid data
 data = np.loadtxt("data/candidates.txt")
@@ -39,8 +21,8 @@ for line in data:
             line[5],
             line[6],
         ),
-        MU_TRAPPIST,
-        G * line[7],  # mass in planet is not used in UDP, instead separate array below
+        constants.MU_TRAPPIST,
+        constants.G * line[7],  # mass in planet is not used in UDP, instead separate array below
         1,  # these variable are not relevant for this problem
         1.1,  # these variable are not relevant for this problem
         "Asteroid " + str(int(line[0])),
@@ -116,7 +98,7 @@ class belt_mining_udp:
         self.asteroid_materials_types = asteroid_materials
         self.mission_window = mission_window
         self.n = len(self.asteroids)
-        self.MU = MU_TRAPPIST
+        self.MU = constants.MU_TRAPPIST
 
     def get_bounds(self):
         """Get bounds for the decision variables.
@@ -220,7 +202,7 @@ class belt_mining_udp:
             DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
 
             # Compute fuel used for this transfer and update ship fuel level
-            fuel = fuel - DV / DV_per_fuel
+            fuel = fuel - DV / constants.DV_per_fuel
 
             # Break if we ran out of fuel during this transfer
             if fuel < 0:
@@ -240,14 +222,14 @@ class belt_mining_udp:
             # Collect as much material as is there or we have time to
             material_collected[mat_idx] += np.minimum(
                 self.asteroid_masses[current_ast_id],
-                time_spent_mining[i] / TIME_TO_MINE_FULLY,
+                time_spent_mining[i] / constants.TIME_TO_MINE_FULLY,
             )
 
             # If this is a fuel asteroid, we add it to the fuel
             if mat_idx == 3:
                 fuel_found = np.minimum(
                     self.asteroid_masses[current_ast_id],
-                    time_spent_mining[i] / TIME_TO_MINE_FULLY,
+                    time_spent_mining[i] / constants.TIME_TO_MINE_FULLY,
                 )
                 fuel = np.minimum(1.0, fuel + fuel_found)
 
@@ -297,6 +279,6 @@ class belt_mining_udp:
         return convert_to_chromosome(t_arr + t_m + a)
 
 
-udp = belt_mining_udp([0, 1827.0])
+udp = belt_mining_udp([0, constants.TIME_OF_MISSION])
 chromosome = udp.example()
 udp.pretty(chromosome)
