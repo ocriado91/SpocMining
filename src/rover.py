@@ -5,18 +5,19 @@ Rover class to
 
 import logging
 
+import numpy as np
 import polars as pl
 import pykep as pk
-import numpy as np
 
 import constants
 import utils
-import warnings
+
+import plotting
 
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.DEBUG)
+    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -125,8 +126,7 @@ class Rover:
                 time_mining[idx - 1]
 
             # Compute the ephemeris of the previous asteroid at departing time
-            time_of_departure = time_of_arrival[idx - 1] + \
-                time_mining[idx - 1]
+            time_of_departure = time_of_arrival[idx - 1] + time_mining[idx - 1]
 
             r1, v1 = previous_planet_obj.eph(
                 T_START.mjd2000 + time_of_departure
@@ -138,7 +138,7 @@ class Rover:
             )
 
             # Solve the Lambert problem
-            l = pk.lambert_problem(
+            lambert = pk.lambert_problem(
                 r1=r1,
                 r2=r2,
                 tof=time_of_flight * pk.DAY2SEC,
@@ -149,8 +149,8 @@ class Rover:
 
             # Compute the delta-V necessary to go to current asteroid
             # from previous asteroid and match its velocity
-            DV1 = [a - b for a, b in zip(v1, l.get_v1()[0])]
-            DV2 = [a - b for a, b in zip(v2, l.get_v2()[0])]
+            DV1 = [a - b for a, b in zip(v1, lambert.get_v1()[0])]
+            DV2 = [a - b for a, b in zip(v2, lambert.get_v2()[0])]
             DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
 
             # Compute fuel consumption
@@ -181,7 +181,7 @@ class Rover:
             self.score = min(self.tank)
 
             # Report status
-            logging.info("Travelling from %s to %s with a DV = %s. Fuel = %s. Tank = %s. Score = %s",
+            logger.info("Travelling from %s to %s with a DV = %s. Fuel = %s. Tank = %s. Score = %s",
                          previous_asteroid_id,
                          current_asteroid_id,
                          DV,
@@ -190,12 +190,17 @@ class Rover:
                          self.score)
 
 if __name__ == '__main__':
-    datafile = "data/candidates.txt"
+
+    # Parameters extracted from evaluation code
     t_arr = [0, 11.0, 45.98091676982585, 98.86574387748259, 144.3421379448264, 178.78720680368133, 198.49061810149578, 236.39180345018394, 268.4772894184571]
     t_m = [0, 18.980916769828053, 22.88482710766111, 29.47639406736512, 17.445068858837555, 18.703411297804774, 19.901185348707877, 24.085485968277332, 17.543366859589646]
     a = [0, 1446, 5131, 4449, 8091, 1516, 151, 4905, 8490]
 
-
-
+    datafile = "data/candidates.txt"
     rover = Rover(datafile)
     rover.compute_journey(a, t_arr, t_m)
+
+    # Extract asteroid data in evaluation code asteroid list
+    asteroids_data = rover.data.filter(pl.col("ID").is_in(a))
+    plotting.animate_planets(asteroids_data,
+                             time=t_arr[-1])
