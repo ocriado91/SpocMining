@@ -29,10 +29,15 @@ class Rover:
 
     def __init__(self,
                  datafile: str,
-                 mission_window: int = constants.TIME_OF_MISSION):
+                 mission_window: int = constants.TIME_OF_MISSION,
+                 first_asteroid=0):
         self.fuel = 1
         self.tank = [0] * 3
         self.score = 0
+        self.visited_asteroids = []
+
+        # Append first visited asteroid to list
+        self.visited_asteroids.append(first_asteroid)
 
         self.mission_window = mission_window
 
@@ -189,21 +194,48 @@ class Rover:
                          self.tank,
                          self.score)
 
-if __name__ == '__main__':
 
-    # Parameters extracted from evaluation code
-    t_arr = [0, 11.0, 45.98091676982585, 98.86574387748259, 144.3421379448264, 178.78720680368133, 198.49061810149578, 236.39180345018394, 268.4772894184571]
-    t_m = [0, 18.980916769828053, 22.88482710766111, 29.47639406736512, 17.445068858837555, 18.703411297804774, 19.901185348707877, 24.085485968277332, 17.543366859589646]
-    a = [0, 1446, 5131, 4449, 8091, 1516, 151, 4905, 8490]
+    def compute_knn(self,
+                    time: float,
+                    target_asteroid_id: int,
+                    k: int = 20) -> list:
+
+        '''
+        Compute K-Nearest Neighbors asteroid using pykep's KNN phasing method:
+        https://esa.github.io/pykep/documentation/phasing.html?highlight=knn#pykep.phasing.knn
+
+        Parameters:
+            - time (float): Epoch to compute KNN
+            - target_asteroid_id (int): Reference asteroid ID to
+            compute its neighborhood
+            - k (int): Compute the K-th nearest neighbors. (Default: 20)
+        '''
+
+        # Convert asteroids data to pykep planet objects
+        asteroids_planet = []
+        for idx in range(self.data.height):
+            asteroid = self.data[idx]
+            asteroids_planet.append(utils.convert_to_planet(asteroid))
+
+        # Since version 1.24 numpy np.object is deprecated. Rename it as
+        # a dummy variable (https://stackoverflow.com/questions/75069062/module-numpy-has-no-attribute-object)
+        np.object = object
+        knn = pk.phasing.knn(asteroids_planet,
+                             T_START.mjd2000 + time,
+                             T=180)
+        _, ids, _ = knn.find_neighbours(asteroids_planet[target_asteroid_id],
+                                        query_type="knn",
+                                        k=k)
+
+        # Filter out previous visited asteroids
+        ids = [x for x in ids if x not in self.visited_asteroids]
+        return ids
+
+if __name__ == '__main__':
 
     datafile = "data/candidates.txt"
     rover = Rover(datafile)
-    rover.compute_journey(a, t_arr, t_m)
-
-    # Extract asteroid data in evaluation code asteroid list
-    asteroids_data = rover.data.filter(pl.col("ID").is_in(a))
-    # plotting.animate_planets(asteroids_data,
-    #                          time=t_arr[-1])
-    plotting.animate_journey(asteroids_data,
-                             a,
-                             t_arr)
+    ids = rover.compute_knn(time=0,
+                            target_asteroid_id=0,
+                            k=20)
+    logger.info("Extracted nearest asteroids: %s", ids)

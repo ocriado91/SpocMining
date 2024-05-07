@@ -43,3 +43,18 @@ def test_compute_journey():
     expected_score = 0.5847788953196549
     rover.compute_journey(a, t_arr, t_m)
     assert expected_score == rover.score
+
+def test_compute_knn():
+     '''
+     Test compute of K-Nearest Neighbors
+     '''
+
+     datafile = "data/candidates.txt"
+     rover = Rover(datafile)
+
+     expected_ids = [7183, 7181, 6576, 6340]
+     ids = rover.compute_knn(time=0,
+                             target_asteroid_id=0,
+                             k=5)
+     assert expected_ids == ids
+
