@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 '''
-Rover class to
+Implementation of a Rover class to manage journey between asteroids. This class
+allows to compute different methods to optimize the journey between asteroids.
 '''
 
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pykep as pk
 
 import constants
 import utils
-
-import plotting
 
 
 logging.basicConfig(
@@ -26,8 +24,14 @@ logger = logging.getLogger(__name__)
 T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
 T_END = pk.epoch_from_iso_string(constants.ISO_T_END)
 
-class Rover:
+# Generate a exception to handle out of fuel error
+class OutOfFuelException(Exception):
+    ''' Raises when out-of-fuel error'''
 
+class Rover:
+    '''
+    Rover class to travel between asteroids.
+    '''
     def __init__(self,
                  datafile: str,
                  mission_window: int = constants.TIME_OF_MISSION):
@@ -149,12 +153,12 @@ class Rover:
 
             # Compute the delta-V necessary to go to current asteroid
             # from previous asteroid and match its velocity
-            DV1 = [a - b for a, b in zip(v1, lambert.get_v1()[0])]
-            DV2 = [a - b for a, b in zip(v2, lambert.get_v2()[0])]
-            DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
+            delta_v1 = [a - b for a, b in zip(v1, lambert.get_v1()[0])]
+            delta_v2 = [a - b for a, b in zip(v2, lambert.get_v2()[0])]
+            delta_v = np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2)
 
             # Compute fuel consumption
-            self.update_fuel(DV)
+            self.update_fuel(delta_v)
 
             # Get material type of visited asteroid
             material_type = int(current_asteroid_data["Material Type"].item())
@@ -176,10 +180,10 @@ class Rover:
             self.score = min(self.tank)
 
             # Report status
-            logger.info("Travelling from %s to %s with a DV = %s. Fuel = %s. Tank = %s. Score = %s",
+            logger.info("Travelling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
                          previous_asteroid_id,
                          current_asteroid_id,
-                         DV,
+                         delta_v,
                          self.fuel,
                          self.tank,
                          self.score)
@@ -189,10 +193,13 @@ class Rover:
                                 destination_asteroid_id: int,
                                 time_of_arrival: float,
                                 N: int = 100,
-                                step: float = 0.25):
+                                step: float = 0.25) -> (float, float, float):
         '''
         Compute the journey between two asteroids optimizing the fuel
-        consumption
+        consumption. This method is based into determine the time of flight
+        iteratively between 1 and N, extracting the minimum DV required to
+        travel within asteroids and its related time of arrival to the
+        destination asteroid.
 
         Parameters:
             - source_asteroid_id(int): Source asteroid ID where the journey
@@ -227,7 +234,9 @@ class Rover:
             destination_asteroid_data
         )
 
-        # Mine the entire asteroid
+        # Mine the entire asteroid. Avoid to mine the first asteroid
+        # (detected as time_of_arrival = 0 according to challenge
+        # description)
         time_mining = self.compute_time_mining(source_asteroid_id)
         if time_of_arrival == 0:
             time_mining = 0
@@ -240,7 +249,7 @@ class Rover:
             T_START.mjd2000 + time_of_departure
         )
 
-        DV = []
+        delta_v = []
         time_of_flights = np.arange(1, N, step)
         for time_of_flight in time_of_flights:
             _time_of_arrival = time_of_flight + time_of_departure
@@ -260,32 +269,32 @@ class Rover:
                                          max_revs=0)
 
             # Compute Delta-V
-            DV1 = [a - b for a, b in zip(v1, lambert.get_v1()[0])]
-            DV2 = [a - b for a, b in zip(v2, lambert.get_v2()[0])]
-            DV.append(np.linalg.norm(DV1) + np.linalg.norm(DV2))
+            delta_v1 = [a - b for a, b in zip(v1, lambert.get_v1()[0])]
+            delta_v2 = [a - b for a, b in zip(v2, lambert.get_v2()[0])]
+            delta_v.append(np.linalg.norm(delta_v1) + np.linalg.norm(delta_v2))
 
         # Extract the min DV and its related time of flight
-        min_DV = min(DV)
-        min_time_of_flight = time_of_flights[DV.index(min_DV)]
+        min_delta_v = min(delta_v)
+        min_time_of_flight = time_of_flights[delta_v.index(min_delta_v)]
 
         # Compute new time of arrival
         min_time_of_arrival = min_time_of_flight + time_of_departure
 
         # Update tank values
         self.update_tank(source_asteroid_data)
-        self.update_fuel(min_DV)
+        self.update_fuel(min_delta_v)
 
         # Update score
         self.score = min(self.tank)
 
-        logger.info("Optimal journey between %s and %s: DV = %s, tof=%s, tarr=%s, tm=%s",
+        logger.info("Optimal journey between %s and %s: delta_v = %s, tof=%s, tarr=%s, tm=%s",
                     source_asteroid_id,
                     destination_asteroid_id,
-                    min_DV,
+                    min_delta_v,
                     min_time_of_flight,
                     min_time_of_arrival,
                     time_mining)
-        return min_DV, min_time_of_arrival, time_mining
+        return min_delta_v, min_time_of_arrival, time_mining
 
     def compute_time_mining(self,
                             asteroid_id: int) -> float:
@@ -313,7 +322,7 @@ class Rover:
         Update fuel according to DV.
 
         Parameters:
-            - DV (float): DV consumption into the journey
+            - delta_v (float): delta_v consumption into the journey
         '''
 
         fuel_consumption = delta_v / constants.DV_per_fuel
@@ -322,7 +331,7 @@ class Rover:
         logger.info("Fuel level = %s", self.fuel)
         if self.fuel <= 0:
             logger.error("OUT OF FUEL!!")
-            raise Exception("OUT OF FUEL!")
+            raise OutOfFuelException
 
     def update_tank(self,
                     asteroid_data: pl.DataFrame):
@@ -387,7 +396,6 @@ def main():
 
     datafile = "data/candidates.txt"
 
-    scores = []
     for first_asteroid_id in range(0, 1):
         # Initalize a rover starting its journey into the first asteroid
         rover = Rover(datafile)
@@ -412,17 +420,18 @@ def main():
                         neigh_ids)
             # Compute the optimal journey to the nearest asteroid
             try:
-                DV, time_of_arrival, time_mining = rover.compute_optimal_journey(
-                    source_asteroid_id=asteroid,
-                    destination_asteroid_id=neigh_ids[0],
-                    time_of_arrival=times_of_arrival[-1],
+                delta_v, time_of_arrival, time_mining =\
+                    rover.compute_optimal_journey(
+                        source_asteroid_id=asteroid,
+                        destination_asteroid_id=neigh_ids[0],
+                        time_of_arrival=times_of_arrival[-1],
                 )
                 times_mining.append(time_mining)
                 # Append nearest asteroid to list of asteroids and update
                 # the rover visited asteroids list
                 rover.visited_asteroids.append(neigh_ids[0])
                 times_of_arrival.append(time_of_arrival)
-            except Exception as error:
+            except OutOfFuelException:
                 # If an exception occurs is because of the journey between
                 # asteroids is not possible, but the rover mine the source
                 # asteroid anyway.
