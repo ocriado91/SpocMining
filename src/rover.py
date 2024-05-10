@@ -5,6 +5,7 @@ Rover class to
 
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pykep as pk
@@ -16,7 +17,7 @@ import plotting
 
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -29,15 +30,11 @@ class Rover:
 
     def __init__(self,
                  datafile: str,
-                 mission_window: int = constants.TIME_OF_MISSION,
-                 first_asteroid=0):
+                 mission_window: int = constants.TIME_OF_MISSION):
         self.fuel = 1
         self.tank = [0] * 3
         self.score = 0
         self.visited_asteroids = []
-
-        # Append first visited asteroid to list
-        self.visited_asteroids.append(first_asteroid)
 
         self.mission_window = mission_window
 
@@ -157,12 +154,7 @@ class Rover:
             DV = np.linalg.norm(DV1) + np.linalg.norm(DV2)
 
             # Compute fuel consumption
-            fuel_consumption = DV / constants.DV_per_fuel
-            self.fuel -= fuel_consumption
-
-            if self.fuel <= 0:
-                logger.error("Out of fuel")
-                break
+            self.update_fuel(DV)
 
             # Get material type of visited asteroid
             material_type = int(current_asteroid_data["Material Type"].item())
@@ -217,7 +209,7 @@ class Rover:
             - None
         '''
 
-        logger.info("Computing optimal journey between %s and %s",
+        logger.info("Starting optimal journey between %s and %s",
                     source_asteroid_id,
                     destination_asteroid_id)
         # Extract asteroids data and transform to pykep planet objects
@@ -251,7 +243,7 @@ class Rover:
         DV = []
         time_of_flights = np.arange(1, N, step)
         for time_of_flight in time_of_flights:
-            _time_of_arrival = time_of_flight - time_of_departure
+            _time_of_arrival = time_of_flight + time_of_departure
 
             # Compute the ephemeris of destination source at new
             # time of arrival
@@ -281,8 +273,7 @@ class Rover:
 
         # Update tank values
         self.update_tank(source_asteroid_data)
-        if not self.update_fuel(min_DV):
-            raise Exception("OUT OF FUEL!")
+        self.update_fuel(min_DV)
 
         # Update score
         self.score = min(self.tank)
@@ -328,12 +319,10 @@ class Rover:
         fuel_consumption = delta_v / constants.DV_per_fuel
         logger.info("Fuel consumption = %s", fuel_consumption)
         self.fuel -= fuel_consumption
-
+        logger.info("Fuel level = %s", self.fuel)
         if self.fuel <= 0:
             logger.error("OUT OF FUEL!!")
-            return False
-
-        return True
+            raise Exception("OUT OF FUEL!")
 
     def update_tank(self,
                     asteroid_data: pl.DataFrame):
@@ -387,65 +376,74 @@ class Rover:
                                         k=k)
 
         # Filter out previous visited asteroids
+        print(self.visited_asteroids)
         ids = [x for x in ids if x not in self.visited_asteroids]
         return ids
 
-if __name__ == '__main__':
+def main():
+    '''
+    Main function
+    '''
 
     datafile = "data/candidates.txt"
 
-    rover = Rover(datafile)
-    FIRST_ASTEROID_ID = 0
-    asteroids = [FIRST_ASTEROID_ID]
-    times_of_arrival = [0]
-    times_mining = []
-    for asteroid in asteroids:
-        # Extract the neighborhood
-        ids = rover.compute_knn(time=0,
-                                target_asteroid_id=asteroid,
-                                k=20)
-        # Compute the optimal journey to the nearest asteroid
-        try:
-            DV, time_of_arrival, time_mining = rover.compute_optimal_journey(
-                source_asteroid_id=asteroid,
-                destination_asteroid_id=ids[0],
-                time_of_arrival=times_of_arrival[-1],
-            )
-            times_mining.append(time_mining)
-            # Append nearest asteroid to list of asteroids and update
-            # the rover visited asteroids list
-            asteroids.append(ids[0])
-            rover.visited_asteroids = asteroids
-            times_of_arrival.append(time_of_arrival)
-        except Exception as error:
-            # If an exception occurs, is because of the journey between
-            # asteroids is not possible, but the rover mine the source
-            # asteroid anyway.
-            time_mining = rover.compute_time_mining(asteroid)
-            if time_of_arrival == 0:
-                time_mining = 0
-            times_mining.append(time_mining)
-            break
+    scores = []
+    for first_asteroid_id in range(0, 1):
+        # Initalize a rover starting its journey into the first asteroid
+        rover = Rover(datafile)
+        logger.error("STARTING ASTEROID %s", first_asteroid_id)
+        rover.visited_asteroids.append(first_asteroid_id)
 
-        # Current score
+        # Initialize time of arrival and mining of current jorney
+        times_of_arrival = [0]
+        times_mining = []
+
+        # Init the journey starting from the first asteroid previously
+        # selected.
+        for asteroid in rover.visited_asteroids:
+
+            # Extract the neighborhood of current asteroid
+            neigh_ids = rover.compute_knn(time=0,
+                                          target_asteroid_id=asteroid,
+                                          k=50)
+
+            logger.info("Neighbors of %s:%s",
+                        asteroid,
+                        neigh_ids)
+            # Compute the optimal journey to the nearest asteroid
+            try:
+                DV, time_of_arrival, time_mining = rover.compute_optimal_journey(
+                    source_asteroid_id=asteroid,
+                    destination_asteroid_id=neigh_ids[0],
+                    time_of_arrival=times_of_arrival[-1],
+                )
+                times_mining.append(time_mining)
+                # Append nearest asteroid to list of asteroids and update
+                # the rover visited asteroids list
+                rover.visited_asteroids.append(neigh_ids[0])
+                times_of_arrival.append(time_of_arrival)
+            except Exception as error:
+                # If an exception occurs is because of the journey between
+                # asteroids is not possible, but the rover mine the source
+                # asteroid anyway.
+                time_mining = rover.compute_time_mining(asteroid)
+                if time_of_arrival == 0: # Avoid mine the first asteroid
+                    time_mining = 0
+                times_mining.append(time_mining)
+                break
+
+        logger.info("Asteroids: %s", rover.visited_asteroids)
+        logger.info("Time of arrival: %s", times_of_arrival)
+        logger.info("Time mining: %s", times_mining)
         logger.info("Score = %s", rover.score)
 
-    logger.info("Asteroids: %s", asteroids)
-    logger.info("Time of arrival: %s", times_of_arrival)
-    logger.info("Time mining: %s", times_mining)
+        # Use another rover to evalute the computed journey
+        evaluation_rover = Rover(datafile)
+        evaluation_rover.compute_journey(rover.visited_asteroids,
+                            times_of_arrival,
+                            times_mining)
 
-    # Extract visited asteroids from total asteroids data
-    visited_asteroids = rover.data.filter(
-        pl.col("ID").is_in(asteroids)
-    )
-
-    # Use another rover to evalute the computed journey
-    evaluation_rover = Rover(datafile)
-    evaluation_rover.compute_journey(asteroids,
-                          times_of_arrival,
-                          times_mining)
-
-
-
+if __name__ == '__main__':
+    main()
 
 

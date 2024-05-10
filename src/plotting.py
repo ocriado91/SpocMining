@@ -15,7 +15,8 @@ def plot_planets(asteroids_data: pl.DataFrame,
                  t0: float = pk.epoch_from_iso_string(constants.ISO_T_START),
                  tf: float = pk.epoch_from_iso_string(constants.ISO_T_END),
                  s: int = 12,
-                 marker: str = "o"):
+                 marker: str = "o",
+                 color: str = None):
     '''
     Function to plot asteroids within
     polars DataFrame
@@ -47,7 +48,10 @@ def plot_planets(asteroids_data: pl.DataFrame,
         planet = utils.convert_to_planet(planet_data)
 
         # Select color according asteroid material type
-        color = color_lookup[planet_data["Material Type"].item()]
+        if not color:
+            _color = color_lookup[planet_data["Material Type"].item()]
+        else:
+            _color = color
 
         # Use of pykep plotting module
         axes = pk.orbit_plots.plot_planet(planet,
@@ -57,7 +61,7 @@ def plot_planets(asteroids_data: pl.DataFrame,
                                           t0=t0,
                                           tf=tf,
                                           alpha=0, # Don't show orbit plot
-                                          color=color)
+                                          color=_color)
 
         # Set axis limits
         axes.set_xlim([-3e10, 3e10])

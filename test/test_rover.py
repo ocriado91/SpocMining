@@ -52,6 +52,9 @@ def test_compute_knn():
      datafile = "data/candidates.txt"
      rover = Rover(datafile)
 
+     # Add first asteroid to list of visited asteroids
+     rover.visited_asteroids.append(0)
+
      expected_ids = [7183, 7181, 6576, 6340]
      ids = rover.compute_knn(time=0,
                              target_asteroid_id=0,
