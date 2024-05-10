@@ -385,7 +385,6 @@ class Rover:
                                         k=k)
 
         # Filter out previous visited asteroids
-        print(self.visited_asteroids)
         ids = [x for x in ids if x not in self.visited_asteroids]
         return ids
 
@@ -396,7 +395,7 @@ def main():
 
     datafile = "data/candidates.txt"
 
-    for first_asteroid_id in range(0, 1):
+    for first_asteroid_id in range(0, 10000):
         # Initalize a rover starting its journey into the first asteroid
         rover = Rover(datafile)
         logger.error("STARTING ASTEROID %s", first_asteroid_id)
