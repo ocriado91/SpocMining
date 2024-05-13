@@ -15,6 +15,7 @@ def plot_planets(asteroids_data: pl.DataFrame,
                  t0: float = pk.epoch_from_iso_string(constants.ISO_T_START),
                  tf: float = pk.epoch_from_iso_string(constants.ISO_T_END),
                  s: int = 12,
+                 alpha: int = 0,
                  color: str = None):
     '''
     Function to plot asteroids within
@@ -26,6 +27,8 @@ def plot_planets(asteroids_data: pl.DataFrame,
         - t0 (float): Start time to plot planet
         - tf (float): End time to plot planet
         - s (int): Planet size (Default 12)
+        - alpha (int): The alpha blending value, between 0 (transparent) and
+        1 (opaque). (Default 0, don't show orbit plot, just planet position)
         - color (str): Select a color to plot planets (Default: None)
     Returns:
         - plt.axes: Plot axes
@@ -58,7 +61,7 @@ def plot_planets(asteroids_data: pl.DataFrame,
                                           s=s,
                                           t0=t0,
                                           tf=tf,
-                                          alpha=0, # Don't show orbit plot
+                                          alpha=alpha,
                                           color=_color)
 
         # Set axis limits
