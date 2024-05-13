@@ -284,7 +284,7 @@ class Rover:
         self.update_fuel(min_delta_v)
 
         # Update tank. Avoid to mine the first asteroid.
-        if time_of_arrival == 0:
+        if time_of_arrival != 0:
             self.update_tank(source_asteroid_data)
 
         # Update score
