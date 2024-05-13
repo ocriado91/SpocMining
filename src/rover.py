@@ -180,7 +180,7 @@ class Rover:
             self.score = min(self.tank)
 
             # Report status
-            logger.info("Travelling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
+            logger.info("Traveling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
                          previous_asteroid_id,
                          current_asteroid_id,
                          delta_v,
@@ -280,9 +280,12 @@ class Rover:
         # Compute new time of arrival
         min_time_of_arrival = min_time_of_flight + time_of_departure
 
-        # Update tank values
-        self.update_tank(source_asteroid_data)
+        # Reduce fuel level according to consumed fuel
         self.update_fuel(min_delta_v)
+
+        # Update tank. Avoid to mine the first asteroid.
+        if time_of_arrival == 0:
+            self.update_tank(source_asteroid_data)
 
         # Update score
         self.score = min(self.tank)
