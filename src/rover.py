@@ -287,13 +287,20 @@ class Rover:
         # Update score
         self.score = min(self.tank)
 
-        logging.info("Optimal journey between %s and %s: delta_v = %s, tof=%s, tarr=%s, tm=%s",
+        logging.debug("Optimal journey between %s and %s: delta_v = %s, tof=%s, tarr=%s, tm=%s",
                     source_asteroid_id,
                     destination_asteroid_id,
                     min_delta_v,
                     min_time_of_flight,
                     min_time_of_arrival,
                     time_mining)
+        logging.info("Traveling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
+                         source_asteroid_id,
+                         destination_asteroid_id,
+                         min_delta_v,
+                         self.fuel,
+                         self.tank,
+                         self.score)
         return min_delta_v, min_time_of_arrival, time_mining
 
     def compute_time_mining(self,
@@ -355,7 +362,6 @@ class Rover:
             logging.info("Updated tank: %s", self.tank)
 
 
-
     def compute_knn(self,
                     time: float,
                     target_asteroid_id: int,
@@ -408,18 +414,20 @@ class Rover:
             material_rates = np.where(np.isnan(material_rates),
                                     1/np.count_nonzero(np.isnan(material_rates)),
                                     material_rates)
-        logging.debug("Material rates: %s, %s", material_rates, self.tank)
 
         # Extract material type of candidate asteroid
         material_type = self.data.filter(
             pl.col("ID") == asteroid_candidate
         )["Material Type"].item()
 
-        logging.debug("Candidate asteroid material type = %s", material_type)
 
         if material_type == 3: # Propellant
             return 1
 
+        logging.debug("Returning material rate %s for asteroid %s of type %s",
+                      material_rates[material_type],
+                      asteroid_candidate,
+                      material_type)
         return material_rates[material_type]
 
     def compute_aco(self,
@@ -471,12 +479,15 @@ class Rover:
                     # Extract the neighborhood of current asteroid
                     neigh_ids = rover.compute_knn(time=time_of_arrival[-1],
                                                   target_asteroid_id=current_asteroid,
-                                                  k=30)
+                                                  k=5)
                     # Extract the list of unvisited asteroids
                     unvisited = [idx for idx, x in enumerate(visited) if not x]
 
                     # Extract unvisited neighbors
                     unvisited_neigh = [x for x in neigh_ids if x in unvisited]
+                    logging.debug("Unvisited neighbors of %s: %s",
+                                  current_asteroid,
+                                  unvisited_neigh)
 
                     # Compute the probability of go to another unvisited
                     # asteroid from current asteroid based on its potential
