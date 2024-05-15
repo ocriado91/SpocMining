@@ -6,6 +6,7 @@ allows to compute different methods to optimize the journey between asteroids.
 
 import logging
 
+import argparse
 import numpy as np
 import polars as pl
 import pykep as pk
@@ -351,8 +352,12 @@ class Rover:
 
         if material_type == 3:
             self.fuel += material_collected
+            if self.fuel > 1:
+                self.fuel = 1
+            logger.info("Updated fuel: %s", self.fuel)
         else:
             self.tank[material_type] += material_collected
+            logger.info("Updated tank: %s", self.tank)
 
 
 
@@ -405,7 +410,6 @@ class Rover:
 
         # Convert NaN values (incoming from 0 into tank mass)
         if np.count_nonzero(np.isnan(material_rates)):
-            logger.debug("Converting NaN values")
             material_rates = np.where(np.isnan(material_rates),
                                     1/np.count_nonzero(np.isnan(material_rates)),
                                     material_rates)
@@ -444,7 +448,6 @@ class Rover:
         # Start iteration
         for iteration in range(iterations):
             logger.info("Starting ACO iteration %s", iteration)
-
             # Each rover becomes its journey
             for rover_id in range(rovers):
 
@@ -467,15 +470,17 @@ class Rover:
 
                 logger.info("Starting rover %s journey...", rover_id)
                 # Try to visit all asteroids
-                while False in visited:
+                while False in visited and \
+                    time_of_arrival[-1] <= constants.TIME_OF_MISSION:
 
                     # Extract the neighborhood of current asteroid
                     neigh_ids = rover.compute_knn(time=time_of_arrival[-1],
-                                                  target_asteroid_id=current_asteroid)
+                                                  target_asteroid_id=current_asteroid,
+                                                  k=30)
                     # Extract the list of unvisited asteroids
                     unvisited = [idx for idx, x in enumerate(visited) if not x]
 
-                    # Extract the unvisited neighbors
+                    # Extract unvisited neighbors
                     unvisited_neigh = [x for x in neigh_ids if x in unvisited]
 
                     # Compute the probability of go to another unvisited
@@ -487,10 +492,13 @@ class Rover:
                         unvisited_rate = rover.rate_candidates(unvisited_asteroid)
                         probability = pheromone[current_asteroid,
                                                 unvisited_asteroid] * unvisited_rate
-                        logger.info("Neighbor ID = %s with probability = %s",
-                                    unvisited_asteroid,
-                                    probability)
                         probabilities[idx] = probability
+
+                    # If all probabilities are 0 (any neighbor asteroid found
+                    # with desired material), assign the same value to
+                    # probabilities array
+                    if probabilities.count(0) == len(probabilities):
+                        probabilities = [1] * len(probabilities)
 
                     # Normalize probabilities
                     probabilities /= np.sum(probabilities)
@@ -510,8 +518,6 @@ class Rover:
                                 destination_asteroid_id=next_asteroid,
                                 time_of_arrival=time_of_arrival[-1]
                             )
-                        logger.info("Fuel of rover: %s", rover.fuel)
-                        logger.info("Tank of rover: %s", rover.tank)
                         # Add next asteroids and visited asteroids lists
                         asteroids.append(next_asteroid)
                         visited[next_asteroid] = True
@@ -537,22 +543,43 @@ class Rover:
         logger.info("BEST SCORE = %s", best_score)
         return asteroids, time_of_arrival, time_mining
 
+def argument_parser():
+    '''
+    Function to retrieve CLI arguments
+    '''
+
+    args = argparse.ArgumentParser()
+    args.add_argument("--iterations",
+                      help="Number of iterations to be executed",
+                      type=int,
+                      default=100)
+    args.add_argument("--rovers",
+                      help="Number of rovers (ants)",
+                      type=int,
+                      default=10)
+
+    return args.parse_args()
+
 def main():
     '''
     Main function
     '''
+    # Read CLI arguments
+    args = argument_parser()
 
+    # Initialize rover object
     datafile = "data/candidates.txt"
     rover = Rover(datafile=datafile)
+
+    # Execute ACO algorithm
     asteroids, time_of_arrival, time_mining = \
-        rover.compute_aco(iterations=1, rovers=10)
+        rover.compute_aco(iterations=args.iterations,
+                          rovers=args.rovers)
+
+    # Show results
     logger.info("Asteroids: %s", asteroids)
     logger.info("Time of arrival: %s", time_of_arrival)
     logger.info("Time mining: %s", time_mining)
-
-    rover.compute_journey(asteroids,
-                          time_of_arrival,
-                          time_mining)
 
 if __name__ == '__main__':
     main()
