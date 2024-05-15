@@ -16,11 +16,6 @@ import utils
 
 np.seterr(divide='ignore', invalid='ignore')
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
-    level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 # Start and end epochs
 T_START = pk.epoch_from_iso_string(constants.ISO_T_START)
@@ -55,7 +50,7 @@ class Rover:
             - datafile (str): Asteroid candidates file
         '''
 
-        logger.info("Reading datafile %s", self.datafile)
+        logging.info("Reading datafile %s", self.datafile)
 
         # Set custom headers
         HEADER = ["ID",
@@ -121,11 +116,11 @@ class Rover:
                 previous_asteroid_data
             )
 
-            logger.info("Computing journey between %s and %s",
+            logging.info("Computing journey between %s and %s",
                         previous_asteroid_id, current_asteroid_id)
             # Check if mission window is reached
             if time_of_arrival[idx] - time_of_arrival[0] > self.mission_window:
-                logger.error("Mission window exceeded")
+                logging.error("Mission window exceeded")
                 break
 
             # Compute the ephemeris of the previous asteroid at departing time
@@ -182,7 +177,7 @@ class Rover:
             self.score = min(self.tank)
 
             # Report status
-            logger.info("Traveling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
+            logging.info("Traveling from %s to %s with a delta_v = %s. Fuel = %s. Tank = %s. Score = %s",
                          previous_asteroid_id,
                          current_asteroid_id,
                          delta_v,
@@ -218,7 +213,7 @@ class Rover:
             - None
         '''
 
-        logger.info("Starting optimal journey between %s and %s",
+        logging.info("Starting optimal journey between %s and %s",
                     source_asteroid_id,
                     destination_asteroid_id)
         # Extract asteroids data and transform to pykep planet objects
@@ -292,7 +287,7 @@ class Rover:
         # Update score
         self.score = min(self.tank)
 
-        logger.info("Optimal journey between %s and %s: delta_v = %s, tof=%s, tarr=%s, tm=%s",
+        logging.info("Optimal journey between %s and %s: delta_v = %s, tof=%s, tarr=%s, tm=%s",
                     source_asteroid_id,
                     destination_asteroid_id,
                     min_delta_v,
@@ -331,11 +326,11 @@ class Rover:
         '''
 
         fuel_consumption = delta_v / constants.DV_per_fuel
-        logger.info("Fuel consumption = %s", fuel_consumption)
+        logging.info("Fuel consumption = %s", fuel_consumption)
         self.fuel -= fuel_consumption
-        logger.info("Fuel level = %s", self.fuel)
+        logging.info("Fuel level = %s", self.fuel)
         if self.fuel <= 0:
-            logger.error("OUT OF FUEL!!")
+            logging.error("OUT OF FUEL!!")
             raise OutOfFuelException
 
     def update_tank(self,
@@ -354,10 +349,10 @@ class Rover:
             self.fuel += material_collected
             if self.fuel > 1:
                 self.fuel = 1
-            logger.info("Updated fuel: %s", self.fuel)
+            logging.info("Updated fuel: %s", self.fuel)
         else:
             self.tank[material_type] += material_collected
-            logger.info("Updated tank: %s", self.tank)
+            logging.info("Updated tank: %s", self.tank)
 
 
 
@@ -413,14 +408,14 @@ class Rover:
             material_rates = np.where(np.isnan(material_rates),
                                     1/np.count_nonzero(np.isnan(material_rates)),
                                     material_rates)
-        logger.debug("Material rates: %s, %s", material_rates, self.tank)
+        logging.debug("Material rates: %s, %s", material_rates, self.tank)
 
         # Extract material type of candidate asteroid
         material_type = self.data.filter(
             pl.col("ID") == asteroid_candidate
         )["Material Type"].item()
 
-        logger.debug("Candidate asteroid material type = %s", material_type)
+        logging.debug("Candidate asteroid material type = %s", material_type)
 
         if material_type == 3: # Propellant
             return 1
@@ -447,7 +442,7 @@ class Rover:
         best_score = 0
         # Start iteration
         for iteration in range(iterations):
-            logger.info("Starting ACO iteration %s", iteration)
+            logging.info("Starting ACO iteration %s", iteration)
             # Each rover becomes its journey
             for rover_id in range(rovers):
 
@@ -468,7 +463,7 @@ class Rover:
                 time_mining = []
                 asteroids = [current_asteroid]
 
-                logger.info("Starting rover %s journey...", rover_id)
+                logging.info("Starting rover %s journey...", rover_id)
                 # Try to visit all asteroids
                 while False in visited and \
                     time_of_arrival[-1] <= constants.TIME_OF_MISSION:
@@ -506,7 +501,7 @@ class Rover:
                     # Select next asteroid based on probabilities
                     next_asteroid = np.random.choice(unvisited_neigh,
                                                      p=probabilities)
-                    logger.info("Selected next asteroid: %s", next_asteroid)
+                    logging.info("Selected next asteroid: %s", next_asteroid)
 
                     # Move to the next point
                     try:
@@ -531,17 +526,33 @@ class Rover:
                         current_asteroid = next_asteroid
                     except OutOfFuelException:
                         time_mining.append(rover.compute_time_mining(current_asteroid))
-                        logger.info("SCORE = %s", rover.score)
+                        logging.info("SCORE = %s", rover.score)
                         if rover.score > best_score:
                             best_score = rover.score
-                            logger.info("New best score (%s) with: %s, %s, %s",
+                            logging.info("New best score (%s) with: %s, %s, %s",
                                         best_score,
                                         asteroids,
                                         time_of_arrival,
                                         time_mining)
                         break
-        logger.info("BEST SCORE = %s", best_score)
+        logging.info("BEST SCORE = %s", best_score)
         return asteroids, time_of_arrival, time_mining
+
+def configure_logging(args: argparse.ArgumentParser):
+    '''
+    Setup logging object
+    '''
+
+    if args.log_file:
+        logging.basicConfig(
+            filename=args.log_file,
+            format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
+            level=logging.INFO)
+    else:
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
+            level=logging.INFO)
+
 
 def argument_parser():
     '''
@@ -557,6 +568,16 @@ def argument_parser():
                       help="Number of rovers (ants)",
                       type=int,
                       default=10)
+    args.add_argument("--log_level",
+                      help="Level of log",
+                      choices=["CRITICAL",
+                               "ERROR",
+                               "WARNING",
+                               "INFO",
+                               "DEBUG"],
+                      default="INFO")
+    args.add_argument("--log_file",
+                      help="Filename of log")
 
     return args.parse_args()
 
@@ -566,6 +587,9 @@ def main():
     '''
     # Read CLI arguments
     args = argument_parser()
+
+    # Setup logging
+    configure_logging(args)
 
     # Initialize rover object
     datafile = "data/candidates.txt"
@@ -577,9 +601,9 @@ def main():
                           rovers=args.rovers)
 
     # Show results
-    logger.info("Asteroids: %s", asteroids)
-    logger.info("Time of arrival: %s", time_of_arrival)
-    logger.info("Time mining: %s", time_mining)
+    logging.info("Asteroids: %s", asteroids)
+    logging.info("Time of arrival: %s", time_of_arrival)
+    logging.info("Time mining: %s", time_mining)
 
 if __name__ == '__main__':
     main()
