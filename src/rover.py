@@ -484,7 +484,9 @@ class Rover:
                     probabilities = [0] * len(unvisited_neigh)
 
                     for idx, unvisited_asteroid in enumerate(unvisited_neigh):
-                        unvisited_rate = rover.rate_candidates(unvisited_asteroid)
+                        unvisited_rate = rover.rate_candidates(
+                            unvisited_asteroid
+                        )
                         probability = pheromone[current_asteroid,
                                                 unvisited_asteroid] * unvisited_rate
                         probabilities[idx] = probability
@@ -523,6 +525,10 @@ class Rover:
 
                         # Update pheromone
                         pheromone[current_asteroid, next_asteroid] += rover.rate_candidates(next_asteroid)
+                        logging.info("Updated pheromone between %s and %s: %s",
+                                     current_asteroid,
+                                     next_asteroid,
+                                     pheromone[current_asteroid, next_asteroid])
                         current_asteroid = next_asteroid
                     except OutOfFuelException:
                         time_mining.append(rover.compute_time_mining(current_asteroid))
@@ -547,11 +553,11 @@ def configure_logging(args: argparse.ArgumentParser):
         logging.basicConfig(
             filename=args.log_file,
             format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
-            level=logging.INFO)
+            level=args.log_level)
     else:
         logging.basicConfig(
             format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
-            level=logging.INFO)
+            level=args.log_level)
 
 
 def argument_parser():
