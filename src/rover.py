@@ -50,7 +50,7 @@ class Rover:
             - datafile (str): Asteroid candidates file
         '''
 
-        logging.info("Reading datafile %s", self.datafile)
+        logging.debug("Reading datafile %s", self.datafile)
 
         # Set custom headers
         HEADER = ["ID",
@@ -213,7 +213,7 @@ class Rover:
             - None
         '''
 
-        logging.info("Starting optimal journey between %s and %s",
+        logging.debug("Starting optimal journey between %s and %s",
                     source_asteroid_id,
                     destination_asteroid_id)
         # Extract asteroids data and transform to pykep planet objects
@@ -333,9 +333,9 @@ class Rover:
         '''
 
         fuel_consumption = delta_v / constants.DV_per_fuel
-        logging.info("Fuel consumption = %s", fuel_consumption)
+        logging.debug("Fuel consumption = %s", fuel_consumption)
         self.fuel -= fuel_consumption
-        logging.info("Fuel level = %s", self.fuel)
+        logging.debug("Fuel level = %s", self.fuel)
         if self.fuel <= 0:
             logging.error("OUT OF FUEL!!")
             raise OutOfFuelException
@@ -345,13 +345,17 @@ class Rover:
         '''
         Update tank after mine the entire asteroid
         '''
-
         # Get material type of asteroid
         material_type = asteroid_data["Material Type"].item()
 
         # Compute material collected
         material_collected = asteroid_data["Mass [0 to 1]"].item()
 
+        asteroid_id = asteroid_data["ID"].item()
+        logging.info("Mining asteroid %s of type %s with collected mass = %s",
+                     asteroid_id,
+                     material_type,
+                     material_collected)
         if material_type == 3:
             self.fuel += material_collected
             if self.fuel > 1:
@@ -399,36 +403,65 @@ class Rover:
         return ids
 
     def rate_candidates(self,
-                        asteroid_candidate: int):
+                        current_asteroid: int,
+                        asteroid_candidate: int,
+                        time_of_arrival: float):
         '''
         Rate asteroid candidate in based on its material
         '''
+
+        logging.info("Checking rate between %s and %s",
+                     current_asteroid,
+                     asteroid_candidate)
+
+        rover = Rover(self.datafile)
+        DV, _time_of_arrival, _time_mining = rover.compute_optimal_journey(
+            source_asteroid_id=current_asteroid,
+            destination_asteroid_id=asteroid_candidate,
+            time_of_arrival=time_of_arrival
+        )
+
+        fuel_consumption = DV / constants.DV_per_fuel
+        logging.info("Fuel consumption of travel to candidate %s: %s",
+                     asteroid_candidate,
+                     fuel_consumption)
+        fuel_rate = self.fuel / fuel_consumption
 
         material_rates = np.sum(self.tank) / self.tank
 
         # Normalize material rates
         material_rates /= np.sum(material_rates)
+        logging.info("Material rates: %s; Tank = %s",
+                     material_rates,
+                     self.tank)
 
         # Convert NaN values (incoming from 0 into tank mass)
         if np.count_nonzero(np.isnan(material_rates)):
+            logging.info("Converting NaN values %s",
+                         material_rates)
             material_rates = np.where(np.isnan(material_rates),
                                     1/np.count_nonzero(np.isnan(material_rates)),
                                     material_rates)
+            logging.info("Converted NaN values: %s", material_rates)
 
         # Extract material type of candidate asteroid
         material_type = self.data.filter(
             pl.col("ID") == asteroid_candidate
         )["Material Type"].item()
 
-
+        # FIXME
         if material_type == 3: # Propellant
             return 1
 
-        logging.debug("Returning material rate %s for asteroid %s of type %s",
+        # Set total rate
+        total_rate = material_rates[material_type] * fuel_rate
+        logging.info("Material rate %s for asteroid %s of type %s | Fuel rate %s | Total rate %s",
                       material_rates[material_type],
                       asteroid_candidate,
-                      material_type)
-        return material_rates[material_type]
+                      material_type,
+                      fuel_rate,
+                      total_rate)
+        return total_rate
 
     def compute_aco(self,
                     rovers: int = 100,
@@ -466,16 +499,20 @@ class Rover:
                 # Add current asteroid to list of visited asteroids
                 visited[current_asteroid] = True
 
-                # Initialize time of arrival list
+                # Initialize time of arrival, time mining and asteroid lists
                 time_of_arrival = [0]
                 time_mining = []
                 asteroids = [current_asteroid]
 
                 logging.info("Starting rover %s journey...", rover_id)
-                # Try to visit all asteroids
+                # Try to visit all asteroids within time of mission window
                 while False in visited and \
                     time_of_arrival[-1] <= constants.TIME_OF_MISSION:
 
+                    logging.info("Current tank %s and fuel %s at %s",
+                                 rover.tank,
+                                 rover.fuel,
+                                 time_of_arrival[-1])
                     # Extract the neighborhood of current asteroid
                     neigh_ids = rover.compute_knn(time=time_of_arrival[-1],
                                                   target_asteroid_id=current_asteroid,
@@ -485,9 +522,6 @@ class Rover:
 
                     # Extract unvisited neighbors
                     unvisited_neigh = [x for x in neigh_ids if x in unvisited]
-                    logging.debug("Unvisited neighbors of %s: %s",
-                                  current_asteroid,
-                                  unvisited_neigh)
 
                     # Compute the probability of go to another unvisited
                     # asteroid from current asteroid based on its potential
@@ -496,11 +530,21 @@ class Rover:
 
                     for idx, unvisited_asteroid in enumerate(unvisited_neigh):
                         unvisited_rate = rover.rate_candidates(
-                            unvisited_asteroid
+                            current_asteroid=current_asteroid,
+                            asteroid_candidate=unvisited_asteroid,
+                            time_of_arrival=time_of_arrival[-1]
                         )
+                        logging.info("Pheromone between %s and %s: %s",
+                                     current_asteroid,
+                                     unvisited_asteroid,
+                                     pheromone[current_asteroid, unvisited_asteroid])
                         probability = pheromone[current_asteroid,
                                                 unvisited_asteroid] * unvisited_rate
                         probabilities[idx] = probability
+                        logging.info("Probability of %s = %s. Probabilities = %s",
+                                     unvisited_asteroid,
+                                     probability,
+                                     probabilities)
 
                     # If all probabilities are 0 (any neighbor asteroid found
                     # with desired material), assign the same value to
@@ -510,37 +554,50 @@ class Rover:
 
                     # Normalize probabilities
                     probabilities /= np.sum(probabilities)
-
+                    logging.info("Probabilities: %s", probabilities)
                     # Select next asteroid based on probabilities
                     next_asteroid = np.random.choice(unvisited_neigh,
                                                      p=probabilities)
-                    logging.info("Selected next asteroid: %s", next_asteroid)
-
+                    logging.info("Probabilities = %s of unvisited = %s and selected = %s",
+                                 probabilities,
+                                 unvisited_neigh,
+                                 next_asteroid)
                     # Move to the next point
                     try:
                         # Compute the optimal journey between current asteroid
                         # and next one.
-                        DV, _time_of_arrival, _time_mining = \
+                        _, _time_of_arrival, _time_mining = \
                             rover.compute_optimal_journey(
                                 source_asteroid_id=current_asteroid,
                                 destination_asteroid_id=next_asteroid,
                                 time_of_arrival=time_of_arrival[-1]
                             )
-                        # Add next asteroids and visited asteroids lists
-                        asteroids.append(next_asteroid)
-                        visited[next_asteroid] = True
 
-                        # Append time of arrival and mining to lists
-                        time_of_arrival.append(_time_of_arrival)
-                        time_mining.append(_time_mining)
+                        # Compute the rate of next asteroid
+                        next_asteroid_rate = rover.rate_candidates(
+                            current_asteroid=current_asteroid,
+                            asteroid_candidate=next_asteroid,
+                            time_of_arrival=time_of_arrival[-1])
 
-                        # Update pheromone
-                        pheromone[current_asteroid, next_asteroid] += rover.rate_candidates(next_asteroid)
+                        # Update pheromone as inverse of asteroid rate
+                        pheromone[current_asteroid, next_asteroid] += 1 / next_asteroid_rate
+
                         logging.info("Updated pheromone between %s and %s: %s",
                                      current_asteroid,
                                      next_asteroid,
                                      pheromone[current_asteroid, next_asteroid])
+
+                        # Add next asteroids and visited asteroids lists
+                        asteroids.append(next_asteroid)
+                        visited[next_asteroid] = True
+
+                        logging.info("Asteroids: %s", asteroids)
+
+                        # Append time of arrival and mining to lists
+                        time_of_arrival.append(_time_of_arrival)
+                        time_mining.append(_time_mining)
                         current_asteroid = next_asteroid
+
                     except OutOfFuelException:
                         time_mining.append(rover.compute_time_mining(current_asteroid))
                         logging.info("SCORE = %s", rover.score)
