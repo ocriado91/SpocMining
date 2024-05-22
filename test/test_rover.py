@@ -61,3 +61,47 @@ def test_compute_knn():
                              k=5)
      assert expected_ids == ids
 
+def test_material_rates():
+     '''
+     Testing material rates in the following cases:
+     - Case 1: Rover tank empty.
+     - Case 2: Rover tank with three types of material.
+     - Case 3: Rover tank with lack of one type of material.
+     - Case 4: Rover tank with lack of two types of materials.
+     '''
+
+     datafile = "data/candidates.txt"
+     rover = Rover(datafile)
+
+     # Case 1: Rover tank with three types of material
+     expected_material_rates = [1/3] * 3
+     material_rates = list(rover.material_rates())
+     assert material_rates == expected_material_rates
+
+     # Case 2: Rover tank with three types of material
+     rover.tank = [0.5, 1.5, 0.25]
+     expected_material_rates = [0.3, 0.1, 0.6]
+     material_rates = list(rover.material_rates())
+     assert material_rates == expected_material_rates
+
+     # Case 3: Rover tank with lack of one type of material.
+     rover.tank = [0.5, 0, 1]
+     expected_material_rates = [0.028708133971291867,
+                                0.9569377990430622,
+                                0.014354066985645933]
+     material_rates = list(rover.material_rates())
+     assert material_rates == expected_material_rates
+
+     # Case 4: Rover tank with lack of two types of material.
+     rover.tank = [0, 0, 200]
+     expected_material_rates = [0.4975124378109453,
+                                0.4975124378109453,
+                                0.004975124378109453]
+     material_rates = list(rover.material_rates())
+     print(material_rates)
+     assert material_rates == expected_material_rates
+
+
+
+
+
