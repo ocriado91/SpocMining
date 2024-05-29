@@ -20,3 +20,10 @@ TIME_TO_MINE_FULLY = 30
 
 # Maximum time of mission
 TIME_OF_MISSION = 1827
+
+# Material ID of propellant
+PROPELLANT_ID = 3
+
+# Optimal journey parameters
+MAX_ITERARTIONS = 100
+STEP = 0.25
