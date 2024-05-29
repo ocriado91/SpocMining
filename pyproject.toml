@@ -2,3 +2,26 @@
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore=[
+    # Ignoring one-blank-line-before-class (selected by Ruff)
+    "D203",
+    # Ignoring multi-line-summary-second-line (selected by Ruff)
+    "D213",
+    # Deprecated into next Ruff releases: https://docs.astral.sh/ruff/rules/missing-type-self/
+    "ANN101",
+    # The next rules are due to since version 1.24 numpy np.object is deprecated but still used into pykep package.
+    # Rename it as a dummy variable (https://stackoverflow.com/questions/75069062/module-numpy-has-no-attribute-object)
+    "NPY001",
+    "F823",
+    "F841",
+    "PLW0127",
+    "A001",
+    # FIXME
+    "PLR0915",
+]
