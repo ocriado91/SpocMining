@@ -457,11 +457,11 @@ class Rover:
                 verbose=False
             )
         except OutOfFuelException:
-            logging.warning("Out-of-fuel traveling to asteroid %s rate = 0",
+            logging.debug("Out-of-fuel traveling to asteroid %s rate = 0",
                             asteroid_candidate)
             return 0
         except ReachedEndOfMission:
-            logging.warning("Time of arrival to %s exceeds mission window %s",
+            logging.debug("Time of arrival to %s exceeds mission window %s",
                             asteroid_candidate,
                             constants.TIME_OF_MISSION)
             return 0
