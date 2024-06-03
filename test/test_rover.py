@@ -45,63 +45,61 @@ def test_compute_journey():
     assert expected_score == rover.score
 
 def test_compute_knn():
-     '''
-     Test compute of K-Nearest Neighbors
-     '''
+    '''
+    Test compute of K-Nearest Neighbors
+    '''
 
-     datafile = "data/candidates.txt"
-     rover = Rover(datafile)
+    datafile = "data/candidates.txt"
+    rover = Rover(datafile)
 
-     # Add first asteroid to list of visited asteroids
-     rover.visited_asteroids.append(0)
+    # Add first asteroid to list of visited asteroids
+    rover.visited_asteroids.append(0)
 
-     expected_ids = [7183, 7181, 6576, 6340]
-     ids = rover.compute_knn(time=0,
-                             target_asteroid_id=0,
-                             k=5)
-     assert expected_ids == ids
+    expected_ids = [7183, 7181, 6576, 6340]
+    ids = rover.compute_knn(time=0,
+                            target_asteroid_id=0,
+                            k=5)
+    assert expected_ids == ids
 
-def test_material_rates():
-     '''
-     Testing material rates in the following cases:
-     - Case 1: Rover tank empty.
-     - Case 2: Rover tank with three types of material.
-     - Case 3: Rover tank with lack of one type of material.
-     - Case 4: Rover tank with lack of two types of materials.
-     '''
+def test_material_rate_empty_tank():
+    """Check material rates when rover tank is empty."""
 
-     datafile = "data/candidates.txt"
-     rover = Rover(datafile)
+    datafile = "data/candidates.txt"
+    rover = Rover(datafile)
 
-     # Case 1: Rover tank with three types of material
-     expected_material_rates = [1/3] * 3
-     material_rates = list(rover.material_rates())
-     assert material_rates == expected_material_rates
+    expected_material_rate = 1/3
+    material_rate = rover.material_rate(7183)
+    assert expected_material_rate == material_rate
 
-     # Case 2: Rover tank with three types of material
-     rover.tank = [0.5, 1.5, 0.25]
-     expected_material_rates = [0.3, 0.1, 0.6]
-     material_rates = list(rover.material_rates())
-     assert material_rates == expected_material_rates
+def test_material_rate_non_empty_tank():
+    """Check material rates when rover tank is not empty."""
 
-     # Case 3: Rover tank with lack of one type of material.
-     rover.tank = [0.5, 0, 1]
-     expected_material_rates = [0.028708133971291867,
-                                0.9569377990430622,
-                                0.014354066985645933]
-     material_rates = list(rover.material_rates())
-     assert material_rates == expected_material_rates
+    datafile = "data/candidates.txt"
+    rover = Rover(datafile)
 
-     # Case 4: Rover tank with lack of two types of material.
-     rover.tank = [0, 0, 200]
-     expected_material_rates = [0.4975124378109453,
-                                0.4975124378109453,
-                                0.004975124378109453]
-     material_rates = list(rover.material_rates())
-     print(material_rates)
-     assert material_rates == expected_material_rates
+    rover.tank = [0.5, 1.5, 0.25]
+    expected_material_rate = 0.6
+    material_rate = rover.material_rate(7183)
+    assert material_rate == expected_material_rate
 
+def test_material_rate_lack_one_material():
+    """Check material rates when there is lack of one material."""
 
+    datafile = "data/candidates.txt"
+    rover = Rover(datafile)
 
+    rover.tank = [0.5, 0, 1]
+    expected_material_rate = 0.014354066985645933
+    material_rate = rover.material_rate(7183)
+    assert material_rate == expected_material_rate
 
+def test_material_rate_lack_two_materials():
+    """Check material rates when there is lack of two different materials."""
 
+    datafile = "data/candidates.txt"
+    rover = Rover(datafile)
+
+    rover.tank = [0, 0, 200]
+    expected_material_rate = 0.004975124378109453
+    material_rate = rover.material_rate(7183)
+    assert material_rate == expected_material_rate
