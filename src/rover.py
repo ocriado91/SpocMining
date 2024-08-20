@@ -418,11 +418,12 @@ class Rover:
             material_type,
         )
 
+        # Priorize extraction of fuel (return a high value) if current tank level
+        # is lover than a threshold
         if material_type == constants.PROPELLANT_ID:
-            if self.fuel < 0.7:
-                return 5
+            if self.fuel < constants.FUEL_THRESHOLD:
+                return constants.LOW_FUEL_LEVEL_RETURN_VALUE
             return 0
-
 
         material_rates = [0] * 3
         total_mass = self.data.select(pl.sum("Mass [0 to 1]")).item()
@@ -550,14 +551,14 @@ class Rover:
         # Set total rate
         total_rate = material_rate * fuel_rate * mass_rate
         logging.debug(
-            ("Material rate %s for asteroid %s (%s)"
-            "| Fuel rate %s | Mass rate %s | Total rate %s"),
-            material_rate,
+            ("Total rate %s for asteroid %s (%s)"
+            "| Fuel rate %s | Mass rate %s | Material rate %s"),
+            total_rate,
             candidate_asteroid,
             material_type,
             fuel_rate,
             mass_rate,
-            total_rate,
+            material_rate,
         )
         return total_rate
 
@@ -725,21 +726,42 @@ class Rover:
                         break
 
                 # End of while loop (time mission reached or rover out of fuel)
+                # Apply evaporation rate
+                pheromone = np.where(pheromone != 1,
+                                     pheromone * 0.95,
+                                     pheromone)
+                pheromone = np.where(pheromone < 1,
+                                     1,
+                                     pheromone)
+
                 time_mining.append(rover.compute_time_mining(current_asteroid))
-                logging.info("Tank: %s, Score: %s, Asteroids: %s, t_arr: %s, t_m: %s",
+                logging.info("Tank: %s\n Score: %s\n Asteroids (%s): %s\n t_arr: %s\n t_m: %s",
                              rover.tank,
                              rover.score,
+                             len(asteroids),
                              asteroids,
                              time_of_arrival,
                              time_mining)
+                # Update pheromone
+                for idx in range(len(asteroids)-1):
+                    logging.info("Previous pheromone between %s and %s: %s",
+                                asteroids[idx],
+                                asteroids[idx+1],
+                                pheromone[asteroids[idx], asteroids[idx+1]])
+                    pheromone[asteroids[idx], asteroids[idx+1]] += rover.score
+                    logging.info("Updating pheromone between %s and %s: %s",
+                                asteroids[idx],
+                                asteroids[idx+1],
+                                pheromone[asteroids[idx], asteroids[idx+1]])
                 if rover.score > best_score:
                     best_score = rover.score
                     best_asteroids = asteroids
                     best_time_of_arrival = time_of_arrival
                     best_time_mining = time_mining
                     logging.info(
-                        "New best score (%s) with: \n%s, \n%s, \n%s",
+                        "New best score (%s) travelling to %s asteroids with: \n%s, \n%s, \n%s",
                         best_score,
+                        len(asteroids),
                         best_time_of_arrival,
                         best_time_mining,
                         best_asteroids,
@@ -779,12 +801,20 @@ def argument_parser() -> argparse.ArgumentParser:
         default=10,
     )
     args.add_argument(
+        "--datafile",
+        help="Candidate asteroids data file (Default: data/candidates.txt)",
+        default="data/candidates.txt"
+    )
+    args.add_argument(
         "--log_level",
         help="Level of log",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         default="INFO",
     )
-    args.add_argument("--log_file", help="Filename of log")
+    args.add_argument(
+        "--log_file",
+        help="Filename of log",
+    )
 
     return args.parse_args()
 
@@ -804,8 +834,7 @@ def main() -> None:
     configure_logging(args)
 
     # Initialize rover object
-    datafile = "data/candidates.txt"
-    rover = Rover(datafile=datafile)
+    rover = Rover(datafile=args.datafile)
 
     # Execute ACO algorithm for each asteroid
     for asteroid_id in range(0,9999):
@@ -816,7 +845,6 @@ def main() -> None:
             first_asteroid_id=asteroid_id
         )
 
-
         # Show results
         logging.info("Showing results for asteroid %s", asteroid_id)
         logging.info("Best Score: %s", best_score)
@@ -825,7 +853,7 @@ def main() -> None:
         logging.info("Time mining: %s", time_mining)
 
         # Evaluation rover
-        eval_rover = Rover(datafile=datafile)
+        eval_rover = Rover(datafile=args.datafile)
         eval_rover.compute_journey(
             asteroids=asteroids,
             time_of_arrival=time_of_arrival,

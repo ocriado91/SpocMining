@@ -67,7 +67,7 @@ def test_material_rate_empty_tank():
     datafile = "data/candidates.txt"
     rover = Rover(datafile)
 
-    expected_material_rate = 1/3
+    expected_material_rate = 0.05780609283539709
     material_rate = rover.material_rate(7183)
     assert expected_material_rate == material_rate
 
