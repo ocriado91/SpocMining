@@ -25,5 +25,10 @@ TIME_OF_MISSION = 1827
 PROPELLANT_ID = 3
 
 # Optimal journey parameters
-MAX_ITERARTIONS = 100
-STEP = 0.25
+MAX_ITERATIONS = 1000
+STEP = 10
+
+# Priorize extraction of fuel if current tank level
+# is lower than a threshold
+FUEL_THRESHOLD = 0.7
+LOW_FUEL_LEVEL_RETURN_VALUE = 5
