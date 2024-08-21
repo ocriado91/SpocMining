@@ -3,9 +3,10 @@
 import imageio
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import plotly.graph_objects as go
 import polars as pl
 import pykep as pk
-import os
 
 import constants
 import utils
@@ -175,3 +176,69 @@ def animate_journey(asteroids_data: pl.DataFrame,
     # Create GIF file
     imageio.mimsave(filename, images)
 
+def sankey_diagram(
+    data: dict,
+    figure_name: str = "sankey.png",
+    title: str = "Pheromone evolution into asteroid journey",
+):
+    '''
+    Create a Sankey diagram to visualize the journey of a rover
+    '''
+
+    asteroid_ids = []
+    label = []
+    values = []
+    for key in data.keys():
+        # Extract asteroid IDs for current key and store them into
+        # asteroid IDs.
+        asteroid_ids += [x for x in data[key][0]]
+
+        # Build the labels for the targets of current asteroid ID.
+        _label = ["Asteroid " + str(x) for x in data[key][0]]
+        label += _label
+
+        values.extend(data[key][1])
+
+
+    # Insert first asteroid into lists.
+    asteroid_ids.insert(0, list(data.keys())[0])
+    label.insert(0, "Asteroid " + str(list(data.keys())[0]))
+
+    # Build a dictionary with {asteroid_id: id} values to extract
+    # the target nodes
+    node_dict = {y:x for x, y in enumerate(asteroid_ids)}
+
+    source = []
+    target = []
+    for key in data.keys():
+        ast_targets = data[key][0]
+        _source = [node_dict[key]] * len(ast_targets)
+        source.extend(_source)
+        for ast_target in ast_targets:
+            target.append(node_dict[ast_target])
+
+    fig = go.Figure(
+            data=[
+                go.Sankey(
+                    node = dict(
+                        pad = 15,
+                        thickness = 10,
+                        line = dict(color = "green", width = 10),
+                        label = label,
+                    ),
+                    link = dict(
+                            source = source,
+                            target = target,
+                            value = values,
+                        )
+                )
+            ]
+        )
+
+    fig.update_layout(
+        autosize=False,
+        width=2000,
+        height=1000,
+        title_text=title,
+        font_size=10)
+    fig.write_image(figure_name)

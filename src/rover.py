@@ -7,11 +7,13 @@ between asteroids.
 import argparse
 import logging
 
-import constants
 import numpy as np
 import polars as pl
 import pykep as pk
 import utils
+
+import constants
+import plotting
 
 np.seterr(divide="ignore", invalid="ignore")
 
@@ -361,7 +363,7 @@ class Rover:
     def compute_knn(self,
                     time: float,
                     target_asteroid_id: int,
-                    k: int = 20) -> list:
+                    k: int = 50) -> list:
         """Compute K-Nearest Neighbors asteroid using pykep KNN phasing method.
 
         Args:
@@ -369,7 +371,7 @@ class Rover:
             time (float): Epoch to compute KNN
             target_asteroid_id (int): Reference asteroid ID to
             compute its neighborhood
-            k (int): Compute the K-th nearest neighbors. (Default: 20)
+            k (int): Compute the K-th nearest neighbors. (Default: 50)
 
         """
         # Convert asteroids data to pykep planet objects
@@ -594,6 +596,7 @@ class Rover:
 
             # Each rover becomes its journey into the current iteration
             for rover_id in range(rovers):
+                data = {}
                 # Initialize a new rover object
                 rover = Rover(datafile=self.datafile)
 
@@ -665,6 +668,10 @@ class Rover:
                     # Normalize probabilities
                     probabilities /= np.sum(probabilities)
 
+                    logging.debug("Saving Sankey data for %s: %s",
+                                 current_asteroid, unvisited_neigh)
+                    data[current_asteroid] = (unvisited_neigh, probabilities)
+
                     # Create a random generator
                     rng = np.random.default_rng()
                     # Select next asteroid based on probabilities
@@ -676,10 +683,6 @@ class Rover:
                         unvisited_neigh,
                         next_asteroid,
                     )
-
-                    # Update pheromone between current asteroid
-                    # and next selected asteroid.
-                    # pheromone[current_asteroid, next_asteroid] += 1 #FIXME
 
                     # Travel to next asteroid
                     try:
@@ -766,6 +769,9 @@ class Rover:
                         best_time_mining,
                         best_asteroids,
                     )
+                sankey_fig_name = "sankey_rover_" + str(rover_id) + "_iteration_" + str(iteration) + ".png"
+                plotting.sankey_diagram(data,
+                                        figure_name=sankey_fig_name)
         logging.info("BEST SCORE = %s", best_score)
         return best_asteroids, best_time_of_arrival, best_time_mining, best_score
 
@@ -799,6 +805,12 @@ def argument_parser() -> argparse.ArgumentParser:
         help="Number of rovers (ants)",
         type=int,
         default=10,
+    )
+    args.add_argument(
+        "--asteroids",
+        help="Number of starting asteroids",
+        type=int,
+        default=9999,
     )
     args.add_argument(
         "--datafile",
@@ -837,7 +849,7 @@ def main() -> None:
     rover = Rover(datafile=args.datafile)
 
     # Execute ACO algorithm for each asteroid
-    for asteroid_id in range(0,9999):
+    for asteroid_id in range(0,args.asteroids):
         logging.info("Starting ACO  with first asteroid %s", asteroid_id)
         asteroids, time_of_arrival, time_mining, best_score = rover.compute_aco(
             iterations=args.iterations,
